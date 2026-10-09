@@ -47,7 +47,7 @@ export function LapChart({ result, time }: Props) {
       <ol className="laps" style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}>
         {result.laps.map((_, i) => {
           const lap = laps[i];
-          const label = `${(i + 1) * 200}`;
+          const label = `${result.lapMarks[i]}`;
           if (lap === undefined) {
             return (
               <li key={i} className="lap pending">
@@ -57,14 +57,17 @@ export function LapChart({ result, time }: Props) {
               </li>
             );
           }
-          const diff = Math.max(-MAX_DIFF, Math.min(MAX_DIFF, ref - lap));
+          // 最初の区間が短い距離（2500mなど）は、その長さに合わせた基準と比べる
+          const segment = result.lapMarks[i] - (i === 0 ? 0 : result.lapMarks[i - 1]);
+          const segRef = (ref * segment) / 200;
+          const diff = Math.max(-MAX_DIFF, Math.min(MAX_DIFF, segRef - lap));
           const pct = Math.max(3, (Math.abs(diff) / MAX_DIFF) * 50);
           const fast = diff >= 0;
           return (
             <li
               key={i}
               className={`lap ${i === laps.length - 1 ? 'latest' : ''}`}
-              title={`${label}m地点 ${lap.toFixed(1)}秒（基準より${Math.abs(ref - lap).toFixed(1)}秒${fast ? '速い' : '遅い'}）`}
+              title={`${label}m地点 ${lap.toFixed(1)}秒（基準より${Math.abs(segRef - lap).toFixed(1)}秒${fast ? '速い' : '遅い'}）`}
             >
               <span className="bar-area">
                 <span

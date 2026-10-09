@@ -1,5 +1,11 @@
+import { DAYS_PER_YEAR } from '../sim';
 import { useGame } from '../store';
 import { useMeeting } from './useRace';
+
+/** 重賞の格のバッジ */
+export function GradeBadge({ grade }: { grade: 'G1' | 'G2' | 'G3' | null }) {
+  return grade ? <span className={`grade ${grade}`}>{grade}</span> : null;
+}
 
 export function formatCoins(n: number): string {
   return n.toLocaleString('ja-JP');
@@ -18,7 +24,9 @@ export function GameHeader() {
   return (
     <header className="game-header">
       <div className="meeting-name">
-        <span className="eyebrow">{meeting.day}日目</span>
+        <span className="eyebrow">
+          {meeting.year}年{meeting.month}月{meeting.date}日・第{meeting.day}日/{DAYS_PER_YEAR}
+        </span>
         <strong>{meeting.venue}</strong>
       </div>
       <nav className="game-nav" aria-label="画面">

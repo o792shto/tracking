@@ -20,7 +20,7 @@ export function Watch() {
   return (
     <RaceViewer
       result={result}
-      eyebrow={`${meeting.venue} ${race.no}R ${race.className}`}
+      eyebrow={`${meeting.venue} ${race.no}R ${race.grade ? `${race.name}（${race.grade}）` : race.name}`}
       highlight={highlight}
       renderStatus={(order, finished) =>
         placed.length > 0 && (

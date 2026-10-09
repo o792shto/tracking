@@ -1,7 +1,7 @@
 import { effectiveAbility, type EffectiveAbility } from './ability';
 import { TRACK, isCurve, lapPosition } from './course';
 import { PARAMS } from './params';
-import { finishRecords, judgePace } from './result';
+import { finishRecords, judgePace, lapMarks } from './result';
 import { Rng } from './rng';
 import {
   LOG_FIELDS,
@@ -117,8 +117,13 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
   });
 
   const n = runners.length;
-  const lapCount = Math.round(D / 200);
+  // ラップの区切り（スタートからの距離）。ゴールから200mごとに区切るので、
+  // 200で割り切れない距離（2500mなど）は最初の区間が短くなる
+  const marks = lapMarks(D);
+  const firstMark = marks[0];
+  const lapCount = marks.length;
   const lapCross: number[] = new Array(lapCount).fill(NaN);
+  let split600 = NaN;
   const record = options.record ?? true;
   const tail = options.tailSeconds ?? 2;
   const frames: number[] = [];
@@ -309,11 +314,12 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       // 通過時刻（補間）
       const moved = r.d - dPrev;
       if (dPrev < D - 600 && r.d >= D - 600) r.last600Time = t + (dt * (D - 600 - dPrev)) / moved;
-      const lapIdx = Math.floor(r.d / 200) - 1;
+      const lapIdx = r.d >= firstMark ? Math.floor((r.d - firstMark) / 200) : -1;
       if (lapIdx >= 0 && lapIdx < lapCount && Number.isNaN(lapCross[lapIdx])) {
-        const mark = (lapIdx + 1) * 200;
+        const mark = marks[lapIdx];
         if (dPrev < mark) lapCross[lapIdx] = t + (dt * (mark - dPrev)) / moved;
       }
+      if (Number.isNaN(split600) && dPrev < 600 && r.d >= 600) split600 = t + (dt * (600 - dPrev)) / moved;
       if (!finished && r.d >= D) {
         r.finishTime = t + (dt * (D - dPrev)) / moved;
         r.finishSpeed = r.v;
@@ -353,7 +359,9 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       })),
     ),
     laps,
-    pace: judgePace(laps),
+    lapMarks: marks,
+    first3f: split600,
+    pace: judgePace(split600, laps),
     events,
     log,
   };

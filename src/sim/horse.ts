@@ -91,6 +91,8 @@ export function frameNumbers(count: number): number[] {
 export interface CreateRaceOptions {
   course?: Partial<Course>;
   runners?: number;
+  /** 出走馬の能力水準（能力値の平均）。省略時は60（3勝クラス相当） */
+  classLevel?: number;
 }
 
 /** シードからコースと出走馬を生成する */
@@ -105,8 +107,8 @@ export function createRace(seed: number, options: CreateRaceOptions = {}): RaceS
         ? 'turf'
         : 'dirt');
   const distance = wanted ?? rng.pick(DISTANCES_BY_SURFACE[surface]);
-  if (!DISTANCES_BY_SURFACE[surface].includes(distance)) {
-    throw new Error(`${surface} ${distance}m のレースはありません`);
+  if (distance < 1000 || distance > 4000 || distance % 100 !== 0) {
+    throw new Error(`${distance}m のレースは作れません（1000〜4000mの100m単位）`);
   }
   const course: Course = {
     distance,
@@ -128,7 +130,7 @@ export function createRace(seed: number, options: CreateRaceOptions = {}): RaceS
     entries.push({
       number: i + 1,
       frame: frames[i],
-      horse: generateHorse(rng, `h${seed}-${i + 1}`),
+      horse: generateHorse(rng, `h${seed}-${i + 1}`, options.classLevel),
       form: 1 + rng.normal(0, 0.006),
     });
   }

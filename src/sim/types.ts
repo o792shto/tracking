@@ -2,10 +2,12 @@ export type Surface = 'turf' | 'dirt';
 export type Direction = 'right' | 'left';
 /** 良・稍重・重・不良 */
 export type TrackCondition = 'good' | 'yielding' | 'soft' | 'heavy';
-export type RaceDistance = 1200 | 1600 | 2000 | 2400;
+/** 距離（m）。100m単位 */
+export type RaceDistance = number;
 /** 逃げ・先行・差し・追込 */
 export type RunningStyle = 'nige' | 'senko' | 'sashi' | 'oikomi';
 
+/** 番組で使う標準の距離（重賞以外のレースはこの中から選ぶ） */
 export const DISTANCES: readonly RaceDistance[] = [1200, 1600, 2000, 2400];
 /** 馬場ごとに施行する距離（ダートに2400mはない） */
 export const DISTANCES_BY_SURFACE: Record<Surface, readonly RaceDistance[]> = {
@@ -115,8 +117,12 @@ export const LOG_FIELDS = 4;
 export interface RaceResult {
   setup: RaceSetup;
   finish: FinishRecord[];
-  /** 先頭馬の200mごとのラップ（秒） */
+  /** 先頭馬の200mごとのラップ（秒）。200で割り切れない距離は最初の区間が短い */
   laps: number[];
+  /** 各ラップの区切り（スタートからの距離、m） */
+  lapMarks: number[];
+  /** 先頭の前半3F（スタートから600mまでの時間、秒） */
+  first3f: number;
   pace: 'high' | 'middle' | 'slow';
   events: RaceEvent[];
   log: RaceLog | null;

@@ -30,7 +30,7 @@ export function effectiveAbility(entry: Entry, course: Course, includeForm = tru
 
   const cruise =
     PARAMS.baseCruise[course.surface] *
-    Math.pow(1600 / D, PARAMS.cruiseDistanceExponent) *
+    Math.pow(1600 / D, PARAMS.cruiseDistanceExponent[course.surface]) *
     (1 + PARAMS.speedStatRange * (stats.speed / 100 - 0.5)) *
     PARAMS.conditionSpeed[course.surface][course.condition] *
     surfaceAptitude[course.surface] *
@@ -42,7 +42,7 @@ export function effectiveAbility(entry: Entry, course: Course, includeForm = tru
     (1 +
       (PARAMS.kickBase + PARAMS.kickRange * (stats.kick / 100)) *
         PARAMS.kickSurface[course.surface] *
-        Math.pow(D / 1600, PARAMS.kickDistanceExp) *
+        Math.pow(D / 1600, PARAMS.kickDistanceExp[course.surface]) *
         PARAMS.conditionKick[course.surface][course.condition]);
 
   const staminaPool =

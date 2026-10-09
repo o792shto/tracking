@@ -11,7 +11,7 @@ import {
 import { CONDITION_LABEL, STYLE_LABEL, SURFACE_LABEL, formatPastRun } from '../sim';
 import { frameColor } from '../render';
 import { placedTotal, useGame } from '../store';
-import { formatCoins } from './GameHeader';
+import { GradeBadge, formatCoins } from './GameHeader';
 import { useRaceCard } from './useRace';
 
 /** 発走前のオッズ表示が切り替わる間隔（ms） */
@@ -106,11 +106,14 @@ export function RaceCard() {
             {meeting.venue} {race.no}R
           </span>
           <h1>
-            {race.className}　{SURFACE_LABEL[course.surface]}
+            <GradeBadge grade={race.grade} />
+            {race.name}　{SURFACE_LABEL[course.surface]}
             {course.distance}m
           </h1>
           <span className="race-meta">
-            {course.direction === 'right' ? '右回り' : '左回り'}・馬場 {CONDITION_LABEL[course.condition]}・{entries.length}頭
+            {race.className && `${race.className}・`}
+            {course.direction === 'right' ? '右回り' : '左回り'}・馬場 {CONDITION_LABEL[course.condition]}・
+            {entries.length}頭
           </span>
         </div>
         <span className={`odds-state ${final ? 'final' : ''}`} role="status">

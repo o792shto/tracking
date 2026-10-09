@@ -22,16 +22,24 @@ const TOL_3F = 0.3;
 type Key = `${Surface}-${RaceDistance}`;
 const good = new Map<Key, CourseStats>();
 const heavy = new Map<Key, CourseStats>();
-const courses = (['turf', 'dirt'] as const).flatMap((surface) =>
-  DISTANCES_BY_SURFACE[surface].map((distance) => ({ surface, distance, key: `${surface}-${distance}` as Key })),
-);
+/** ゲームで使う標準距離と、参考値のある距離（ダート1400/1800/2100、芝3000など）の両方を検証する */
+const courses = (['turf', 'dirt'] as const).flatMap((surface) => {
+  const distances = new Set<number>([
+    ...DISTANCES_BY_SURFACE[surface],
+    ...Object.keys(REFERENCE_GOOD[surface]).map(Number),
+  ]);
+  return [...distances].sort((a, b) => a - b).map((distance) => ({ surface, distance, key: `${surface}-${distance}` as Key }));
+});
+const gameCourses = courses.filter((c) => DISTANCES_BY_SURFACE[c.surface].includes(c.distance));
 
 beforeAll(() => {
   const rows: string[] = ['| 条件 | 勝ち時計 | 平均ラップ | 上がり3F | 1F目 | 最速/最遅 | 2F目最速 | ラスト2F目最速 | 最終F最遅 |'];
   for (const { surface, distance, key } of courses) {
     const g = runCourseBatch(surface, distance, ['good'], RACES, 5000);
     // 道悪＝重・不良。同じシード系列で良と比べる
-    const h = runCourseBatch(surface, distance, ['soft', 'heavy'], RACES, 5000);
+    const h = DISTANCES_BY_SURFACE[surface].includes(distance)
+      ? runCourseBatch(surface, distance, ['soft', 'heavy'], RACES, 5000)
+      : g;
     good.set(key, g);
     heavy.set(key, h);
     for (const [label, s] of [['良', g], ['道悪', h]] as const) {
@@ -65,7 +73,7 @@ describe('良馬場：参考値との比較', () => {
 });
 
 describe('道悪（重・不良）', () => {
-  it.each(courses.filter((c) => c.surface === 'turf'))('$key：芝は良より遅く、上がりがかかる', ({ key }) => {
+  it.each(gameCourses.filter((c) => c.surface === 'turf'))('$key：芝は良より遅く、上がりがかかる', ({ key }) => {
     const g = good.get(key)!;
     const h = heavy.get(key)!;
     expect(h.winTime - g.winTime).toBeGreaterThan(REFERENCE_TURF_HEAVY.timeDelta[0]);
@@ -75,7 +83,7 @@ describe('道悪（重・不良）', () => {
     expect(h.last3f).toBeLessThan(REFERENCE_TURF_HEAVY.last3f[1] + TOL_3F);
   });
 
-  it.each(courses.filter((c) => c.surface === 'dirt'))('$key：ダートは良より速くなる', ({ key }) => {
+  it.each(gameCourses.filter((c) => c.surface === 'dirt'))('$key：ダートは良より速くなる', ({ key }) => {
     const g = good.get(key)!;
     const h = heavy.get(key)!;
     expect(h.winTime - g.winTime).toBeGreaterThan(REFERENCE_DIRT_HEAVY.timeDelta[0] - 0.3);
@@ -86,7 +94,8 @@ describe('道悪（重・不良）', () => {
 });
 
 describe('ラップ形状の傾向', () => {
-  it.each(courses)('$key：1F目はほぼ12秒台', ({ key }) => {
+  // 200で割り切れない距離（2100mなど）は1F目が100mなので除く
+  it.each(courses.filter((c) => c.distance % 200 === 0))('$key：1F目はほぼ12秒台', ({ key }) => {
     const s = good.get(key)!;
     expect(s.firstLap).toBeGreaterThan(REFERENCE_FIRST_LAP[0] - 0.1);
     expect(s.firstLap).toBeLessThan(REFERENCE_FIRST_LAP[1] + 0.1);

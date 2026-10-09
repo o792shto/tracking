@@ -102,7 +102,7 @@ export function referenceLap(result: RaceResult): number {
   const { course } = result.setup;
   const cruise =
     PARAMS.baseCruise[course.surface] *
-    Math.pow(1600 / course.distance, PARAMS.cruiseDistanceExponent) *
+    Math.pow(1600 / course.distance, PARAMS.cruiseDistanceExponent[course.surface]) *
     PARAMS.conditionSpeed[course.surface][course.condition];
   return 200 / cruise;
 }
@@ -117,7 +117,7 @@ export interface PaceReadout {
 export function paceReadout(result: RaceResult, t: number): PaceReadout {
   const laps = lapsSoFar(result, t);
   const done = laps.length === result.laps.length;
-  const first3f = laps.length >= 3 ? laps[0] + laps[1] + laps[2] : null;
+  const first3f = Number.isFinite(result.first3f) && t >= result.first3f ? result.first3f : null;
   const last3f = done ? laps.slice(-3).reduce((a, b) => a + b, 0) : null;
   return { first3f, last3f, judgement: done ? result.pace : null };
 }

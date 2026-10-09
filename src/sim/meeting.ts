@@ -1,42 +1,74 @@
-import { createRace } from './horse';
-import { Rng, hashSeed } from './rng';
+import {
+  AGE_LABEL,
+  CLASS_LABEL,
+  RACES_PER_DAY,
+  raceDay,
+  setupFor,
+  type ProgramRace,
+  type RaceClass,
+} from './program';
+import type { Venue } from './gradedRaces';
 import type { RaceSetup } from './types';
 
-/** 1開催のレース数（仕様では未決定。仮の値） */
-export const RACES_PER_MEETING = 8;
-
-/** 架空の競馬場名（実在の競馬場と重ならない名前） */
-const VENUES = ['汐見野', '霧ノ原', '星降', '朝凪', '風祭', '月見坂', '若潮', '鈴鳴'];
-const CLASSES = ['未勝利', '1勝クラス', '1勝クラス', '2勝クラス', '2勝クラス', '3勝クラス', 'オープン', 'オープン'];
+/** 1開催日のレース数 */
+export const RACES_PER_MEETING = RACES_PER_DAY;
 
 export interface MeetingRace {
-  /** レース番号（1R〜） */
+  /** レース番号（1R〜12R） */
   no: number;
   seed: number;
+  raceClass: RaceClass;
+  /** 重賞名、またはクラス名 */
+  name: string;
+  /** 条件の表示（重賞は「3歳以上 牝馬限定」など、条件戦は牝馬限定のときだけ。なければ空） */
   className: string;
+  /** 重賞の格（G1〜G3）。重賞でなければ null */
+  grade: 'G1' | 'G2' | 'G3' | null;
+  program: ProgramRace;
   setup: RaceSetup;
 }
 
 export interface Meeting {
+  /** 通算の開催日（1始まり） */
   seed: number;
-  venue: string;
-  /** 開催の何日目か（表示用） */
+  year: number;
+  /** その年の何日目か（1始まり、全98日） */
   day: number;
+  month: number;
+  date: number;
+  venueName: Venue;
+  venue: string;
   races: MeetingRace[];
 }
 
-export function raceSeed(meetingSeed: number, index: number): number {
-  return hashSeed(meetingSeed * 131 + index + 1);
-}
-
-/** 開催のレース一覧を作る。後のレースほどクラスが上がる */
-export function createMeeting(meetingSeed: number): Meeting {
-  const rng = new Rng(hashSeed(meetingSeed)).fork(7);
-  const venue = rng.pick(VENUES);
-  const races: MeetingRace[] = [];
-  for (let i = 0; i < RACES_PER_MEETING; i++) {
-    const seed = raceSeed(meetingSeed, i);
-    races.push({ no: i + 1, seed, className: CLASSES[i % CLASSES.length], setup: createRace(seed) });
-  }
-  return { seed: meetingSeed, venue: `${venue}競馬場`, day: (meetingSeed % 8) + 1, races };
+/** 通算 serial 日目の開催（1年98日、1日12R、11Rが重賞） */
+export function createMeeting(serial: number): Meeting {
+  const day = raceDay(serial);
+  const races = day.races.map((program): MeetingRace => {
+    const setup = setupFor(day, program);
+    const grade = program.raceClass === 'G1' || program.raceClass === 'G2' || program.raceClass === 'G3' ? program.raceClass : null;
+    // 重賞はレース名と条件（年齢・牝馬限定）、それ以外は「2歳未勝利」のように年齢とクラスで呼ぶ
+    const name = grade ? program.name : `${AGE_LABEL[program.age]}${CLASS_LABEL[program.raceClass]}`;
+    const condition = [grade ? AGE_LABEL[program.age] : '', program.fillies ? '牝馬限定' : ''].filter(Boolean).join(' ');
+    return {
+      no: program.no,
+      seed: setup.seed,
+      raceClass: program.raceClass,
+      name,
+      className: condition,
+      grade,
+      program,
+      setup,
+    };
+  });
+  return {
+    seed: day.serial,
+    year: day.year,
+    day: day.dayIndex + 1,
+    month: day.month,
+    date: day.day,
+    venueName: day.venue,
+    venue: `${day.venue}競馬場`,
+    races,
+  };
 }

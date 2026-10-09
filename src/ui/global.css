@@ -1183,3 +1183,25 @@ button.danger {
     min-height: 100%;
   }
 }
+
+/* 重賞の格 */
+.grade {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--font-data);
+  font-size: 0.7em;
+  font-weight: 700;
+  vertical-align: 0.15em;
+  color: #fff;
+}
+.grade.G1 {
+  background: #2f6fe0;
+}
+.grade.G2 {
+  background: #d8424a;
+}
+.grade.G3 {
+  background: #23955a;
+}

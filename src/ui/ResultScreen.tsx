@@ -2,7 +2,7 @@ import { BET_TYPE_LABEL, BETTING } from '../betting';
 import { RACES_PER_MEETING, formatTime } from '../sim';
 import { frameColor } from '../render';
 import { useGame } from '../store';
-import { formatCoins } from './GameHeader';
+import { GradeBadge, formatCoins } from './GameHeader';
 import { useRaceCard, useRaceResult } from './useRace';
 
 /** 確定・払い戻し */
@@ -41,7 +41,10 @@ export function ResultScreen() {
           <span className="eyebrow">
             {meeting.venue} {race.no}R 確定
           </span>
-          <h1>{race.className}</h1>
+          <h1>
+            <GradeBadge grade={race.grade} />
+            {race.name}
+          </h1>
         </div>
       </header>
 
@@ -148,7 +151,7 @@ export function ResultScreen() {
           <div className="result-actions">
             {meetingDone ? (
               <button type="button" className="primary wide" onClick={nextMeeting}>
-                次の開催へ
+                次の開催日へ
               </button>
             ) : (
               <button type="button" className="primary wide" onClick={() => go('card')}>

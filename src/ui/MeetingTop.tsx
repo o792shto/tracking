@@ -2,7 +2,7 @@ import { BETTING } from '../betting';
 import { CONDITION_LABEL, RACES_PER_MEETING, SURFACE_LABEL } from '../sim';
 import { useGame } from '../store';
 import { frameColor } from '../render';
-import { formatCoins } from './GameHeader';
+import { GradeBadge, formatCoins } from './GameHeader';
 import { useMeeting } from './useRace';
 
 /** 開催トップ：本日のレース一覧 */
@@ -20,7 +20,9 @@ export function MeetingTop() {
   return (
     <main className="screen meeting-top">
       <section className="intro">
-        <h1>{meeting.venue} 本日のレース</h1>
+        <h1>
+          {meeting.month}月{meeting.date}日 {meeting.venue}
+        </h1>
         <p>
           レースは1Rから順に行います。出馬表で馬券を買って発走させてください。馬券を買わずに観戦だけもできます。
         </p>
@@ -43,8 +45,12 @@ export function MeetingTop() {
             <li key={race.no} className={`race-item ${status}`}>
               <span className="race-no">{race.no}R</span>
               <span className="race-desc">
-                <strong>{race.className}</strong>
+                <strong>
+                  <GradeBadge grade={race.grade} />
+                  {race.name}
+                </strong>
                 <span>
+                  {race.className && `${race.className}・`}
                   {SURFACE_LABEL[course.surface]}
                   {course.distance}m・{course.direction === 'right' ? '右' : '左'}・{CONDITION_LABEL[course.condition]}・
                   {entries.length}頭
@@ -77,9 +83,9 @@ export function MeetingTop() {
 
       {done && (
         <div className="meeting-done">
-          <p>この開催のレースはすべて終わりました。</p>
+          <p>この日のレースはすべて終わりました。</p>
           <button type="button" className="primary" onClick={nextMeeting}>
-            次の開催へ
+            次の開催日へ
           </button>
         </div>
       )}

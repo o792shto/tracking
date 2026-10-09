@@ -46,12 +46,19 @@ export function finishRecords(
   });
 }
 
-/** 先頭の前半3Fと後半3Fを比べてペースを判定する */
-export function judgePace(laps: number[]): RaceResult['pace'] {
-  if (laps.length < 6 || laps.some((l) => !Number.isFinite(l))) return 'middle';
-  const first = laps[0] + laps[1] + laps[2];
+/** ラップの区切り（スタートからの距離）。ゴールから200mごとに数え、余りは最初の区間にする */
+export function lapMarks(distance: number): number[] {
+  const first = distance % 200 === 0 ? 200 : distance % 200;
+  const marks: number[] = [];
+  for (let m = first; m <= distance + 1e-9; m += 200) marks.push(m);
+  return marks;
+}
+
+/** 先頭の前半3F（スタートから600m）と後半3F（最後の3区間）を比べてペースを判定する */
+export function judgePace(first3f: number, laps: number[]): RaceResult['pace'] {
+  if (laps.length < 6 || !Number.isFinite(first3f) || laps.some((l) => !Number.isFinite(l))) return 'middle';
   const last = laps[laps.length - 3] + laps[laps.length - 2] + laps[laps.length - 1];
-  const diff = first - last - PARAMS.paceStartAllowance;
+  const diff = first3f - last - PARAMS.paceStartAllowance;
   if (diff < -PARAMS.paceThreshold) return 'high';
   if (diff > PARAMS.paceThreshold) return 'slow';
   return 'middle';

@@ -11,9 +11,9 @@ export const PARAMS = {
   maxTime: 240,
 
   /** 1600m・良馬場・能力50 の巡航速度（m/s） */
-  baseCruise: { turf: 16.9, dirt: 16.55 } as Record<Surface, number>,
+  baseCruise: { turf: 16.9, dirt: 16.31 } as Record<Surface, number>,
   /** 距離による巡航速度の補正：(1600 / 距離) ^ この値 */
-  cruiseDistanceExponent: 0.08,
+  cruiseDistanceExponent: { turf: 0.08, dirt: 0.13 } as Record<Surface, number>,
   /** スピード能力 0→100 で巡航速度に掛かる倍率の幅 */
   speedStatRange: 0.03,
   /** 馬場状態による速度倍率。芝は道悪で遅く、ダートは砂が締まって速くなる */
@@ -38,9 +38,9 @@ export const PARAMS = {
   kickBase: 0.0,
   kickRange: 0.13,
   /** 末脚の伸びの馬場（芝・ダート）による倍率。ダートは上がりがかかる */
-  kickSurface: { turf: 1, dirt: 0.6 } as Record<Surface, number>,
+  kickSurface: { turf: 1, dirt: 0.5 } as Record<Surface, number>,
   /** 末脚の伸びの距離による倍率：(距離 / 1600) ^ この値。短距離は前半が速いぶん上がりがかかる */
-  kickDistanceExp: 0.7,
+  kickDistanceExp: { turf: 0.7, dirt: 0.0 } as Record<Surface, number>,
   /** 仕掛けでの騎手の見積もり違い（標準偏差） */
   jockeyJitter: 0.02,
 
@@ -100,7 +100,7 @@ export const PARAMS = {
   /** 脚質ごとの上乗せ。実際の値 = これ × earlyDashSurface × (1200 / 距離) ^ earlyDashDistanceExp */
   earlyDash: { nige: 1.0, senko: 0.8, sashi: 0.45, oikomi: 0.2 } as Record<RunningStyle, number>,
   earlyDashSurface: { turf: 0.09, dirt: 0.09 } as Record<Surface, number>,
-  earlyDashDistanceExp: 0.8,
+  earlyDashDistanceExp: 0.7,
   /** 逃げ馬以外が先頭に立ったときに巡航速度から抑える割合 */
   reluctantLeaderEase: 0.012,
   /** レースごとのペースのばらつき（標準偏差、巡航速度に対する割合） */

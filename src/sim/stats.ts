@@ -191,10 +191,13 @@ export function runCourseBatch(
     last3f.push(r.finish[0].last3f);
     first.push(laps[0]);
     if (laps[0] >= 12 && laps[0] < 13) in12++;
-    const min = Math.min(...laps);
+    // 最初の区間が200mより短い距離（2100mなど）は、その区間を最速・最遅の比較から除く
+    const offset = r.lapMarks[0] < 200 ? 1 : 0;
+    const full = laps.slice(offset);
+    const min = Math.min(...full);
     const maxAfterFirst = Math.max(...laps.slice(1));
     fastest.push(min);
-    slowest.push(Math.max(...laps));
+    slowest.push(Math.max(...full));
     if (laps.indexOf(min) === 1) second++;
     if (laps.indexOf(min) === laps.length - 2) penult++;
     if (laps.lastIndexOf(maxAfterFirst) === laps.length - 1) lastSlow++;
