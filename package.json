@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sim:report": "vitest run src/sim/stats.test.ts --reporter=verbose"
+    "sim:report": "vitest run src/sim/stats.test.ts --silent=false"
   },
   "dependencies": {
     "react": "^19.3.0",
