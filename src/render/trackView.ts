@@ -36,6 +36,14 @@ export interface ViewOptions {
   lite?: boolean;
 }
 
+/** 全体表示で馬がこの拡大率（px/m）より小さく見えるとき、馬群を拡大した小窓を重ねる */
+const INSET_SCALE = 3.4;
+/** 小窓の大きさ（コース図の幅に対する割合と、上限・下限 px）と、下の字幕を避ける余白 */
+const INSET_WIDTH_RATIO = 0.38;
+const INSET_MAX_WIDTH = 300;
+const INSET_MIN_WIDTH = 140;
+const INSET_BOTTOM_GAP = 64;
+
 /** ゲートが開いて消えるまでの時間（秒） */
 const GATE_FADE = 0.5;
 /** レース中の出来事の札（出遅れ・掛かり・進路をなくした）と、出している時間（秒） */
@@ -63,6 +71,7 @@ export class TrackView {
   private path!: RacePath;
   private overviewRect: Rect = { minX: 0, minY: 0, maxX: 1, maxY: 1 };
   private lite = false;
+  private insetView: CameraView | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -133,6 +142,65 @@ export class TrackView {
     this.drawGate(t);
     this.drawHorses(options);
     this.drawEventTags(t);
+    this.drawInset(t, frameDt, options);
+  }
+
+  /**
+   * 全体表示で馬が小さいとき、先頭集団を拡大した小窓を右下に重ねる。
+   * 同じ描画処理を、小窓の大きさとカメラに差し替えて呼ぶ
+   */
+  private drawInset(t: number, frameDt: number, options: ViewOptions) {
+    const view = this.view!;
+    const D = this.result.setup.course.distance;
+    const order = runningOrder(this.samples);
+    const leader = this.samples[order[0]];
+    if (view.scale >= INSET_SCALE || t <= 0 || !leader || leader.d >= D + 30) {
+      this.insetView = null;
+      return;
+    }
+    const iw = Math.round(Math.min(INSET_MAX_WIDTH, Math.max(INSET_MIN_WIDTH, this.width * INSET_WIDTH_RATIO)));
+    const ih = Math.round(iw * 0.62);
+    const ix = this.width - iw - 10;
+    const iy = Math.max(10, this.height - ih - INSET_BOTTOM_GAP);
+    // 先頭から30m以内の馬と、先頭の少し前
+    const pts = order
+      .map((i) => this.samples[i])
+      .filter((s) => leader.d - s.d < 30)
+      .map((s) => this.point(s.d, s.x));
+    pts.push(this.point(leader.d + 18, 0), this.point(leader.d + 18, TRACK_WIDTH * 0.6));
+    const target = fitRect(boundsOf(pts, 6), iw, ih, 0, 9);
+    this.insetView = this.insetView ? approach(this.insetView, target, 4, frameDt) : target;
+
+    const ctx = this.ctx;
+    const saved = { view: this.view, width: this.width, height: this.height };
+    ctx.save();
+    ctx.translate(ix, iy);
+    ctx.beginPath();
+    ctx.rect(0, 0, iw, ih);
+    ctx.clip();
+    ctx.fillStyle = TRACK_THEME.background;
+    ctx.fillRect(0, 0, iw, ih);
+    this.view = this.insetView;
+    this.width = iw;
+    this.height = ih;
+    this.drawTrack();
+    this.drawMarkers();
+    this.drawHorses(options);
+    this.view = saved.view;
+    this.width = saved.width;
+    this.height = saved.height;
+    ctx.restore();
+    // 枠と見出し
+    ctx.strokeStyle = TRACK_THEME.rail;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(ix + 0.5, iy + 0.5, iw - 1, ih - 1);
+    ctx.font = '700 11px "Zen Kaku Gothic New", system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(5, 12, 19, 0.8)';
+    ctx.fillRect(ix + 1, iy + 1, 58, 16);
+    ctx.fillStyle = TRACK_THEME.rail;
+    ctx.fillText('先頭集団', ix + 6, iy + 3);
   }
 
   /** 発光（軽量モードでは描かない） */
