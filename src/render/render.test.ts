@@ -3,6 +3,7 @@ import { createRace, simulateRace, LOG_FIELDS } from '../sim';
 import { approach, boundsOf, fitRect } from './camera';
 import { logDuration, runningOrder, sampleAt } from './replay';
 import { activeTelop, lapsSoFar, paceReadout, referenceLap, standings } from './overlay';
+import { slowWindow } from './player';
 
 describe('replay', () => {
   const result = simulateRace(createRace(3, { course: { distance: 1200 }, runners: 8 }));
@@ -114,5 +115,25 @@ describe('overlay', () => {
   it('基準ラップはもっともらしい範囲', () => {
     expect(referenceLap(result)).toBeGreaterThan(11);
     expect(referenceLap(result)).toBeLessThan(13.5);
+  });
+});
+
+describe('ゴール前のスロー', () => {
+  it('1・2着が1/2馬身差以内のときだけ、1着のゴール前から2着のゴール後までスローにする', () => {
+    const base = simulateRace(createRace(3, { course: { distance: 1200 }, runners: 8 }), { record: false });
+    const withMargin = (label: string) => ({
+      ...base,
+      finish: [
+        { ...base.finish[0], time: 70 },
+        { ...base.finish[1], time: 70.05, marginLabel: label },
+        ...base.finish.slice(2),
+      ],
+    });
+    const w = slowWindow(withMargin('ハナ'));
+    expect(w).not.toBeNull();
+    expect(w!.from).toBeLessThan(70);
+    expect(w!.to).toBeGreaterThan(70.05);
+    expect(slowWindow(withMargin('1/2'))).not.toBeNull();
+    expect(slowWindow(withMargin('1 1/4'))).toBeNull();
   });
 });

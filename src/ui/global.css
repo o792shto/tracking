@@ -488,25 +488,6 @@ input:focus-visible {
   color: var(--muted);
 }
 
-@media (max-width: 767px) {
-  .stage-row {
-    flex-direction: column;
-  }
-  .stage {
-    flex: none;
-    height: 48vh;
-  }
-  .field {
-    width: auto;
-  }
-  .pace {
-    margin-left: 0;
-  }
-  .tracking {
-    height: auto;
-    min-height: 100%;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .standing,
   .telop {
@@ -1176,19 +1157,12 @@ button.danger {
   .result-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .wallet {
-    margin-left: 0;
-  }
   .history li {
     grid-template-columns: minmax(0, 1fr) auto;
   }
   .history .tickets {
     grid-column: 1 / -1;
     grid-row: 2;
-  }
-  .screen-watch {
-    height: auto;
-    min-height: 100%;
   }
 }
 
@@ -1232,4 +1206,751 @@ button.danger {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* ===== 観戦画面：スマホ縦（compact）・スマホ横（short） ===== */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.tab.on {
+  color: var(--glow);
+  border-bottom-color: var(--glow);
+}
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tab-panel .lap-chart {
+  border: 0;
+}
+.tab-panel .bet-status {
+  border: 0;
+  margin: 0;
+}
+.tab-panel .empty {
+  padding: 12px;
+  margin: 0;
+}
+.show-all {
+  min-height: 44px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--glow);
+  cursor: pointer;
+}
+.dock-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.dock-controls button {
+  min-height: 48px;
+  padding: 0 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.dock-controls button small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dock-controls button.primary {
+  border-color: var(--glow);
+  color: var(--glow);
+}
+.dock-controls .seg {
+  font-family: var(--font-data);
+  font-size: 16px;
+  font-weight: 700;
+}
+.dock-controls .go-result {
+  border-color: var(--goal);
+  color: var(--goal);
+  font-weight: 700;
+}
+.dock .seek {
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+}
+.bet-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.bet-bar.hit {
+  border-color: var(--hit);
+}
+.bet-bar .label {
+  color: var(--muted);
+}
+.bet-bar b {
+  font-size: 14px;
+}
+.bet-bar.hit b {
+  color: var(--hit);
+}
+.bet-bar b small {
+  margin-left: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.bet-bar .bets {
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+.bet-bar .bets .hit {
+  color: var(--hit);
+}
+
+/* スマホ縦：コース図を上に、下にタブ、最下部に固定の操作 */
+.tracking.compact {
+  overflow-y: auto;
+  padding-block: 8px 0;
+  padding-inline: 10px;
+  gap: 8px;
+}
+.tracking.compact .race-bar {
+  align-items: center;
+  gap: 4px 12px;
+}
+.tracking.compact .race-title {
+  gap: 2px 8px;
+}
+.tracking.compact .race-title h1 {
+  font-size: 18px;
+}
+.tracking.compact .race-meta {
+  font-size: 12px;
+}
+.tracking.compact .readouts {
+  gap: 14px;
+  margin-left: auto;
+}
+.tracking.compact .readout .value {
+  font-size: 18px;
+}
+.tracking.compact .readout .value.small {
+  font-size: 15px;
+}
+.tracking.compact .stage {
+  flex: none;
+  height: 45vh;
+  min-height: 220px;
+}
+.tracking.compact .tabs {
+  flex: none;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--panel);
+  margin-bottom: -8px;
+}
+.tracking.compact .tab-panel {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 0 0 6px 6px;
+  background: var(--panel);
+}
+.tracking.compact .standings {
+  overflow: visible;
+}
+.tracking.compact .dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-inline: -10px;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  background: rgba(5, 12, 19, 0.94);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(6px);
+}
+
+/* スマホ横：PCに近い並び。コース図を大きく、右にタブ、下に1列の操作 */
+.tracking.short {
+  padding-block: 6px;
+  padding-inline: 10px calc(10px + env(safe-area-inset-right));
+  gap: 6px;
+}
+.tracking.short .race-bar {
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.tracking.short .race-title {
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.tracking.short .race-title h1 {
+  font-size: 16px;
+}
+.tracking.short .race-meta {
+  font-size: 12px;
+}
+.tracking.short .readout .value {
+  font-size: 16px;
+}
+.tracking.short .readout .value.small {
+  font-size: 14px;
+}
+.tracking.short .stage {
+  min-height: 0;
+}
+.tracking.short .side-panel {
+  width: 280px;
+  overflow: hidden;
+}
+.tracking.short .tab-panel {
+  flex: 1;
+  overflow-y: auto;
+}
+.tracking.short .dock {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 10px;
+}
+.tracking.short .dock-controls button {
+  min-height: 44px;
+}
+.short .stage-row {
+  min-height: 0;
+}
+/* 横向きの観戦中は、上の見出しを詰める */
+.screen-watch:has(.tracking.short) .game-header {
+  padding-block: 2px;
+}
+.screen-watch:has(.tracking.short) .game-header .eyebrow {
+  display: none;
+}
+
+/* ===== 演出：カウントダウン・スロー・写真判定・1着 ===== */
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-data);
+  font-size: min(28vw, 140px);
+  font-weight: 700;
+  color: var(--goal);
+  text-shadow: 0 0 24px rgba(255, 209, 102, 0.6);
+  pointer-events: none;
+  animation: count-pop 0.9s ease-out both;
+}
+.countdown.go {
+  font-family: var(--font-body);
+  font-size: min(12vw, 56px);
+  letter-spacing: 0.2em;
+  animation: count-go 1s ease-out both;
+}
+@keyframes count-pop {
+  from {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0.15;
+    transform: scale(0.9);
+  }
+}
+@keyframes count-go {
+  from {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+.slow-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 10px;
+  border: 1px solid var(--glow);
+  border-radius: 999px;
+  background: rgba(5, 12, 19, 0.8);
+  color: var(--glow);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  pointer-events: none;
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink {
+  to {
+    opacity: 0.4;
+  }
+}
+.photo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.photo-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  animation: flash 0.6s ease-out both;
+}
+@keyframes flash {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.photo-label {
+  position: relative;
+  padding: 8px 22px;
+  border: 2px solid var(--goal);
+  border-radius: 4px;
+  background: rgba(5, 12, 19, 0.88);
+  color: var(--goal);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  animation: blink 0.8s steps(2, start) infinite;
+}
+.photo-sub {
+  position: relative;
+  padding: 2px 10px;
+  border-radius: 3px;
+  background: rgba(5, 12, 19, 0.8);
+  color: var(--fg);
+  font-size: 12px;
+}
+.winner-telop {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 20px);
+  padding: 8px 16px;
+  border: 1px solid var(--goal);
+  border-radius: 6px;
+  background: rgba(5, 12, 19, 0.9);
+  box-shadow: 0 0 22px rgba(255, 209, 102, 0.3);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: telop-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.winner-rank {
+  color: var(--goal);
+  font-weight: 700;
+  font-size: 16px;
+}
+.winner-num {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid;
+  border-radius: 50%;
+  font-family: var(--font-data);
+  font-weight: 700;
+  font-size: 16px;
+}
+.winner-name {
+  font-size: 18px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.winner-margin {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ===== 設定 ===== */
+.settings {
+  position: relative;
+}
+.settings > button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.settings-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.settings-menu label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.settings-menu label:hover {
+  background: rgba(94, 240, 255, 0.06);
+}
+.settings-menu input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--glow);
+}
+.settings-menu span {
+  display: flex;
+  flex-direction: column;
+}
+.settings-menu small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ===== タッチ端末：タップ領域44px以上・文字12px以上 ===== */
+@media (pointer: coarse) {
+  button.primary,
+  button.start,
+  button.wide,
+  .game-nav button,
+  .settings > button,
+  .rescue button,
+  .meeting-done button,
+  .result-actions button,
+  .danger-zone button,
+  .skip-main button,
+  .race-item button,
+  .controls button,
+  .seg-group .seg,
+  .stake-row button {
+    min-height: 44px;
+  }
+  .entry-table .pick {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .standing {
+    min-height: 0;
+  }
+}
+@media (max-width: 767px), (pointer: coarse) {
+  .eyebrow,
+  .readout .label,
+  .standings-head,
+  .standings-head small,
+  .lap-legend,
+  .pace,
+  .lap .dist,
+  .field h2,
+  .race-desc span,
+  .table-wrap th,
+  .entry-table .recent small,
+  .preview dt,
+  .stats dt,
+  .bet-status .label,
+  .bet-panel h3 .muted {
+    font-size: 12px;
+  }
+}
+
+/* 幅の狭い画面の見出し：開催名と所持コインを1行目、画面切替を2行目に */
+@media (max-width: 767px) {
+  .game-header {
+    padding-inline: 10px;
+    gap: 6px 12px;
+  }
+  .game-nav {
+    order: 3;
+    width: 100%;
+  }
+  .game-nav > button,
+  .game-nav .settings,
+  .game-nav .settings > button {
+    flex: 1;
+  }
+  .wallet {
+    margin-left: auto;
+    gap: 14px;
+  }
+  .screen {
+    padding-inline: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .countdown,
+  .countdown.go,
+  .slow-badge,
+  .photo-flash,
+  .photo-label,
+  .winner-telop {
+    animation: none;
+  }
+  .photo-flash {
+    display: none;
+  }
+}
+
+/* 幅の狭い画面の出馬表：1頭を2〜3行のカードにして、横にはみ出さないようにする */
+@media (max-width: 767px) {
+  .entry-table thead {
+    display: none;
+  }
+  .entry-table,
+  .entry-table tbody {
+    display: block;
+  }
+  .entry-table tr {
+    display: grid;
+    grid-template-columns: 24px 48px auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'frame pick name name odds'
+      'frame pick style recent pop'
+      'frame pick comment comment comment';
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 2px;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  .entry-table td {
+    padding: 0;
+    border: 0;
+  }
+  .entry-table .frame-cell {
+    grid-area: frame;
+    align-self: start;
+  }
+  .entry-table .num-cell {
+    grid-area: pick;
+  }
+  .entry-table .pick {
+    width: 48px;
+    min-height: 48px;
+    font-size: 16px;
+  }
+  .entry-table .name-col {
+    grid-area: name;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 15px;
+  }
+  .entry-table .style-cell {
+    grid-area: style;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .entry-table .recent-cell {
+    grid-area: recent;
+    overflow: hidden;
+  }
+  .entry-table .recent {
+    gap: 6px;
+    font-size: 13px;
+  }
+  .entry-table .recent small {
+    font-size: 11px;
+  }
+  .entry-table .comment {
+    grid-area: comment;
+    min-width: 0;
+    font-size: 12px;
+  }
+  .entry-table .odds {
+    grid-area: odds;
+    font-size: 17px;
+  }
+  .entry-table .pop-cell {
+    grid-area: pop;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .entry-table .pop-cell::after {
+    content: '番人気';
+  }
+  /* 観戦中の見出しは1行に詰める（画面切替は観戦中は使えないので隠し、設定だけ残す） */
+  .screen-watch .game-header .eyebrow,
+  .screen-watch .game-nav > button {
+    display: none;
+  }
+  .screen-watch .game-nav {
+    order: 0;
+    width: auto;
+  }
+  .screen-watch .game-header {
+    padding-block: 4px;
+  }
+  .tracking.compact .race-title .eyebrow {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  /* 縦向きの観戦：見出しを1行にして、コース図の下に順位表が5頭ほど見えるようにする */
+  .tracking.compact .race-meta {
+    display: none;
+  }
+  .tracking.compact .race-bar {
+    flex-wrap: nowrap;
+  }
+  .tracking.compact .dock {
+    gap: 4px;
+    padding-top: 6px;
+  }
+  .tracking.compact .dock .seek {
+    min-height: 22px;
+  }
+  .tracking.compact .dock-controls button {
+    min-height: 46px;
+  }
+}
+.screen-watch:has(.tracking.short) .game-nav > button {
+  display: none;
+}
+
+/* ===== 結果：的中・高配当 ===== */
+.win-banner {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--hit);
+  border-radius: 8px;
+  background: rgba(61, 220, 132, 0.08);
+  overflow: hidden;
+  animation: telop-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.win-title {
+  color: var(--hit);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+.win-amount {
+  font-family: var(--font-data);
+  font-size: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+.win-amount small {
+  margin-left: 4px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--muted);
+}
+.win-banner.done .win-amount {
+  color: var(--hit);
+  text-shadow: 0 0 14px rgba(61, 220, 132, 0.5);
+}
+.win-banner.big {
+  border-color: var(--goal);
+  background: linear-gradient(100deg, rgba(255, 209, 102, 0.14), rgba(255, 209, 102, 0.04) 60%);
+  box-shadow: 0 0 30px rgba(255, 209, 102, 0.25);
+}
+.win-banner.big .win-title {
+  color: var(--goal);
+  font-size: 26px;
+  animation: big-pulse 1.2s ease-in-out infinite;
+}
+.win-banner.big.done .win-amount {
+  color: var(--goal);
+  text-shadow: 0 0 18px rgba(255, 209, 102, 0.7);
+}
+@keyframes big-pulse {
+  50% {
+    text-shadow: 0 0 22px rgba(255, 209, 102, 0.9);
+    transform: scale(1.05);
+  }
+}
+/* 高配当の光の粒（背景のグラデーションを流す） */
+.sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255, 225, 140, 0.9) 0 1.5px, transparent 2px),
+    radial-gradient(circle, rgba(94, 240, 255, 0.8) 0 1px, transparent 1.5px);
+  background-size:
+    46px 46px,
+    31px 31px;
+  background-position:
+    0 0,
+    15px 20px;
+  animation: sparkle-drift 3s linear infinite;
+  opacity: 0.7;
+}
+@keyframes sparkle-drift {
+  to {
+    background-position:
+      46px -46px,
+      -16px 51px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .win-banner,
+  .win-banner.big .win-title,
+  .sparkles {
+    animation: none;
+  }
 }

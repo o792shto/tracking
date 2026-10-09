@@ -14,6 +14,10 @@ interface Props {
   onSelect: (number: number) => void;
   /** レース内の時刻（秒）。大きく飛んだとき（シーク）は順位変動を光らせない */
   time: number;
+  /** 出す行を絞る（スマホ：上位5頭＋自分の馬）。省略時は全頭 */
+  filter?: (row: StandingRow) => boolean;
+  /** 写真判定中で順位を伏せる馬番 */
+  masked?: ReadonlySet<number>;
 }
 
 function formatBehind(row: StandingRow): string {
@@ -22,7 +26,7 @@ function formatBehind(row: StandingRow): string {
 }
 
 /** 順位表：順位・馬番・馬名・先頭との差（馬身）・現在速度 */
-export function Standings({ rows, entries, follow, onSelect, time }: Props) {
+export function Standings({ rows, entries, follow, onSelect, time, filter, masked }: Props) {
   const prevRank = useRef(new Map<number, number>());
   const flashes = useRef(new Map<number, { dir: 'up' | 'down'; until: number }>());
   const prevTime = useRef(time);
@@ -52,30 +56,31 @@ export function Standings({ rows, entries, follow, onSelect, time }: Props) {
           速度<small>km/h</small>
         </span>
       </div>
-      <div className="standings-body" style={{ height: rows.length * STANDING_ROW_HEIGHT }}>
-        {rows.map((row) => {
+      <div className="standings-body" style={{ height: (filter ? rows.filter(filter).length : rows.length) * STANDING_ROW_HEIGHT }}>
+        {(filter ? rows.filter(filter) : rows).map((row, slot) => {
           const entry = entries[row.index];
           const c = frameColor(entry.frame);
           const flash = flashes.current.get(row.number);
           const flashing = flash && flash.until > now ? `flash-${flash.dir}` : '';
           const active = follow === row.number;
+          const hidden = masked?.has(row.number) ?? false;
           return (
             <button
               type="button"
               role="row"
               key={row.number}
               className={`standing ${flashing} ${active ? 'active' : ''} ${row.finished ? 'done' : ''}`}
-              style={{ transform: `translateY(${(row.rank - 1) * STANDING_ROW_HEIGHT}px)` }}
+              style={{ transform: `translateY(${slot * STANDING_ROW_HEIGHT}px)` }}
               onClick={() => onSelect(row.number)}
               aria-pressed={active}
-              aria-label={`${row.rank}位 ${row.number}番 ${entry.horse.name}`}
+              aria-label={`${hidden ? '判定中' : `${row.rank}位`} ${row.number}番 ${entry.horse.name}`}
             >
-              <span className="rank">{row.rank}</span>
+              <span className="rank">{hidden ? '?' : row.rank}</span>
               <span className="num" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
                 {row.number}
               </span>
               <span className="name">{entry.horse.name}</span>
-              <span className="num-col behind">{formatBehind(row)}</span>
+              <span className="num-col behind">{hidden ? '' : formatBehind(row)}</span>
               <span className="num-col speed">{row.finished ? '' : row.speedKmh.toFixed(1)}</span>
             </button>
           );

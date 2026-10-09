@@ -33,7 +33,10 @@ const BOOT_CHECK = `(function () {
   window.addEventListener('load', function () { setTimeout(show, 4000); });
 })();`;
 
-const out = `<title>競馬トラッキング</title>
+// スマホで PC 幅に縮小表示されないよう、viewport を必ず入れる（ノッチのある端末は safe-area まで使う）
+const out = `<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>競馬トラッキング</title>
 ${fonts ? `<link rel="stylesheet" href="${fonts}">` : ''}
 <style>${style}</style>
 <div id="root"></div>

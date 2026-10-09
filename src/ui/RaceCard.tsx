@@ -13,6 +13,7 @@ import { frameColor } from '../render';
 import { placedTotal, useGame } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { useRaceCard } from './useRace';
+import { unlockAudio } from './sound';
 
 /** 発走前のオッズ表示が切り替わる間隔（ms） */
 const BOARD_INTERVAL = 3500;
@@ -148,7 +149,7 @@ export function RaceCard() {
                     className={selected ? 'selected' : ''}
                     onClick={() => toggle(e.number)}
                   >
-                    <td>
+                    <td className="frame-cell">
                       <span className="frame" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
                         {e.frame}
                       </span>
@@ -168,8 +169,8 @@ export function RaceCard() {
                       </button>
                     </td>
                     <td className="name-col">{e.horse.name}</td>
-                    <td>{STYLE_LABEL[e.horse.style]}</td>
-                    <td>
+                    <td className="style-cell">{STYLE_LABEL[e.horse.style]}</td>
+                    <td className="recent-cell">
                       <span className="recent">
                         {profile.recent.length === 0 && <span className="muted">初出走</span>}
                         {profile.recent.map((r, k) => (
@@ -182,7 +183,7 @@ export function RaceCard() {
                     </td>
                     <td className="comment">{profile.comments.join('、')}</td>
                     <td className="num odds">{odds.win[i].toFixed(1)}</td>
-                    <td className="num">{odds.popularity[i]}</td>
+                    <td className="num pop-cell">{odds.popularity[i]}</td>
                   </tr>
                 );
               })}
@@ -281,7 +282,15 @@ export function RaceCard() {
           )}
           <p className="muted small">あと{formatCoins(Math.max(0, remainingLimit))}コインまで買えます。払い戻しは確定オッズで計算します。</p>
 
-          <button type="button" className="start wide" onClick={() => go('watch')}>
+          <button
+            type="button"
+            className="start wide"
+            onClick={() => {
+              // 効果音がオンなら、このタップで音を出せる状態にしておく（ブラウザの制限）
+              unlockAudio();
+              go('watch');
+            }}
+          >
             {placed.length ? '発走する' : '馬券を買わずに観戦する'}
           </button>
         </aside>

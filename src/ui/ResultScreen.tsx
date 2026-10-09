@@ -1,9 +1,48 @@
+import { useEffect, useState } from 'react';
 import { BET_TYPE_LABEL, BETTING } from '../betting';
 import { RACES_PER_MEETING, formatTime } from '../sim';
 import { frameColor } from '../render';
 import { useGame } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
+import { sfx } from './sound';
 import { useRaceCard, useRaceResult } from './useRace';
+
+/** 高配当：1枚の払い戻しが賭け金のこの倍率以上、または払い戻しの合計がこれ以上 */
+const BIG_ODDS = 50;
+const BIG_RETURN = 50_000;
+/** 払い戻しのカウントアップにかける時間（ms） */
+const COUNT_MS = 1400;
+
+/** 0 から target まで数を増やしていく（動きを減らす設定ならすぐに target） */
+function useCountUp(target: number, onTick?: () => void): number {
+  const [value, setValue] = useState(() =>
+    target <= 0 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? target : 0,
+  );
+  useEffect(() => {
+    if (target <= 0 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setValue(target);
+      return;
+    }
+    let raf = 0;
+    let lastTick = 0;
+    const start = performance.now();
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / COUNT_MS);
+      // 最後はゆっくり止まる
+      const eased = 1 - Math.pow(1 - p, 3);
+      setValue(Math.round(target * eased));
+      if (onTick && now - lastTick > 70 && p < 1) {
+        lastTick = now;
+        onTick();
+      }
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+  return value;
+}
 
 /** 確定・払い戻し */
 export function ResultScreen() {
@@ -14,6 +53,17 @@ export function ResultScreen() {
   const index = settlement?.raceIndex ?? Math.max(0, raceIndex - 1);
   const { meeting, race, market } = useRaceCard(index);
   const result = useRaceResult(index);
+  const tickets = settlement?.tickets ?? [];
+  const returned = tickets.reduce((a, t) => a + t.payout, 0);
+  const big =
+    returned >= BIG_RETURN || tickets.some((t) => t.payout > 0 && t.payout >= t.bet.stake * BIG_ODDS);
+  const shown = useCountUp(returned, sfx.coin);
+  const counted = shown === returned;
+  useEffect(() => {
+    if (returned <= 0) return;
+    const id = window.setTimeout(() => (big ? sfx.fanfare() : sfx.confirm()), COUNT_MS);
+    return () => window.clearTimeout(id);
+  }, [returned, big]);
 
   if (!settlement) {
     return (
@@ -28,14 +78,23 @@ export function ResultScreen() {
 
   const { entries } = race.setup;
   const board = market.boards[market.boards.length - 1];
-  const { payouts, tickets } = settlement;
+  const { payouts } = settlement;
   const spent = tickets.reduce((a, t) => a + t.bet.stake, 0);
-  const returned = tickets.reduce((a, t) => a + t.payout, 0);
   const per100 = (odds: number) => formatCoins(Math.round(odds * BETTING.unit));
   const meetingDone = raceIndex >= RACES_PER_MEETING;
 
   return (
-    <main className="screen result-screen">
+    <main className={`screen result-screen ${big ? 'big-win' : ''}`}>
+      {returned > 0 && (
+        <div className={`win-banner ${big ? 'big' : ''} ${counted ? 'done' : ''}`} role="status">
+          <span className="win-title">{big ? '高配当！' : '的中！'}</span>
+          <span className="win-amount">
+            +{formatCoins(shown)}
+            <small>コイン</small>
+          </span>
+          {big && <span className="sparkles" aria-hidden="true" />}
+        </div>
+      )}
       <header className="card-head">
         <div>
           <span className="eyebrow">
@@ -138,7 +197,7 @@ export function ResultScreen() {
                   ))}
                 </ul>
                 <p className="balance">
-                  購入 {formatCoins(spent)} → 払い戻し <b>{formatCoins(returned)}</b>
+                  購入 {formatCoins(spent)} → 払い戻し <b>{formatCoins(shown)}</b>
                   <span className={returned - spent >= 0 ? 'plus' : 'minus'}>
                     （{returned - spent >= 0 ? '+' : ''}
                     {formatCoins(returned - spent)}）

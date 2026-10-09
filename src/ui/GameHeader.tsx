@@ -1,6 +1,63 @@
+import { useEffect, useRef, useState } from 'react';
 import { DAYS_PER_YEAR } from '../sim';
-import { useGame } from '../store';
+import { getSettingsStore, useGame, useSettings } from '../store';
+import { sfx, unlockAudio } from './sound';
 import { useMeeting } from './useRace';
+
+/** 設定：軽量モードと効果音 */
+function SettingsMenu() {
+  const [open, setOpen] = useState(false);
+  const lite = useSettings((s) => s.lite);
+  const sound = useSettings((s) => s.sound);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (ev: PointerEvent) => {
+      if (!ref.current?.contains(ev.target as Node)) setOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [open]);
+  return (
+    <div className="settings" ref={ref}>
+      <button type="button" aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((v) => !v)}>
+        設定
+      </button>
+      {open && (
+        <div className="settings-menu" role="group" aria-label="設定">
+          <label>
+            <input
+              type="checkbox"
+              checked={lite}
+              onChange={(ev) => getSettingsStore().getState().setLite(ev.target.checked)}
+            />
+            <span>
+              軽量モード
+              <small>軌跡・発光を省き、描画を軽くします</small>
+            </span>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={sound}
+              onChange={(ev) => {
+                getSettingsStore().getState().setSound(ev.target.checked);
+                if (ev.target.checked) {
+                  unlockAudio();
+                  sfx.confirm();
+                }
+              }}
+            />
+            <span>
+              効果音
+              <small>カウントダウン・ゴール・払い戻しなど</small>
+            </span>
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** 重賞の格のバッジ */
 export function GradeBadge({ grade }: { grade: 'G1' | 'G2' | 'G3' | null }) {
@@ -36,6 +93,7 @@ export function GameHeader() {
         <button type="button" disabled={busy} className={screen === 'record' ? 'on' : ''} onClick={() => go('record')}>
           成績
         </button>
+        <SettingsMenu />
       </nav>
       <div className="wallet">
         <div className="readout">

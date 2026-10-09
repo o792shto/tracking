@@ -32,7 +32,18 @@ export interface ViewOptions {
   followNumber: number | null;
   /** 強調表示する馬番（自分の買った馬など） */
   highlight: ReadonlySet<number>;
+  /** 軽量モード：軌跡・発光・グリッドを描かない */
+  lite?: boolean;
 }
+
+/** ゲートが開いて消えるまでの時間（秒） */
+const GATE_FADE = 0.5;
+/** レース中の出来事の札（出遅れ・掛かり・進路をなくした）と、出している時間（秒） */
+const EVENT_TAGS: Record<RaceResult['events'][number]['kind'], { label: string; color: string; span: number }> = {
+  slowStart: { label: '出遅れ', color: '#ff7b7f', span: 5 },
+  keen: { label: '掛かる', color: '#f0b46a', span: 4 },
+  blocked: { label: '詰まる', color: '#c9a0ff', span: 3 },
+};
 
 /**
  * レースの記録を Canvas 2D に描く。結果は変えず、記録を再生するだけ。
@@ -51,6 +62,7 @@ export class TrackView {
   private bands: { surface: Surface; active: boolean; closed: boolean; inner: Point[]; outer: Point[] }[] = [];
   private path!: RacePath;
   private overviewRect: Rect = { minX: 0, minY: 0, maxX: 1, maxY: 1 };
+  private lite = false;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -110,14 +122,90 @@ export class TrackView {
     const target = this.cameraTarget(t, options);
     this.view = this.view ? approach(this.view, target, 3.2, frameDt) : target;
 
+    this.lite = options.lite ?? false;
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.fillStyle = TRACK_THEME.background;
     ctx.fillRect(0, 0, this.width, this.height);
-    this.drawGrid();
+    if (!this.lite) this.drawGrid();
     this.drawTrack();
     this.drawMarkers();
+    this.drawGate(t);
     this.drawHorses(options);
+    this.drawEventTags(t);
+  }
+
+  /** 発光（軽量モードでは描かない） */
+  private glow(color: string, blur: number) {
+    this.ctx.shadowColor = color;
+    this.ctx.shadowBlur = this.lite ? 0 : blur;
+  }
+
+  /** 発走前のゲート。開いたら少しの間で消える */
+  private drawGate(t: number) {
+    if (t >= GATE_FADE) return;
+    const ctx = this.ctx;
+    const n = this.result.setup.entries.length;
+    const width = n * 1.0 + 0.6;
+    ctx.globalAlpha = t <= 0 ? 1 : 1 - t / GATE_FADE;
+    ctx.strokeStyle = TRACK_THEME.goal;
+    ctx.lineWidth = 1.5;
+    const across = (d: number) => {
+      const a = this.worldToScreen(this.point(d, 0));
+      const b = this.worldToScreen(this.point(d, width));
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    };
+    // 前扉と後ろの枠、馬房の仕切り
+    across(1.2);
+    across(-2.4);
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= n; i++) {
+      const a = this.worldToScreen(this.point(1.2, i * 1.0 + 0.0));
+      const b = this.worldToScreen(this.point(-2.4, i * 1.0 + 0.0));
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** 出遅れ・掛かり・進路をなくした馬に、少しの間だけ札を出す */
+  private drawEventTags(t: number) {
+    const ctx = this.ctx;
+    const scale = this.view!.scale;
+    const radius = Math.min(15, Math.max(5, 1.2 * scale));
+    ctx.font = `700 11px ${'"Zen Kaku Gothic New", system-ui, sans-serif'}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const ev of this.result.events) {
+      const tag = EVENT_TAGS[ev.kind];
+      if (t < ev.time || t > ev.time + tag.span) continue;
+      const s = this.samples[ev.number - 1];
+      if (!s || s.d >= this.result.setup.course.distance) continue;
+      const p = this.worldToScreen(this.point(s.d, s.x));
+      const w = ctx.measureText(tag.label).width + 10;
+      const x = p.x;
+      const y = p.y - radius - 12;
+      ctx.globalAlpha = Math.min(1, (ev.time + tag.span - t) / 0.5);
+      ctx.fillStyle = 'rgba(5, 12, 19, 0.85)';
+      ctx.strokeStyle = tag.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(x - w / 2, y - 8, w, 16);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = tag.color;
+      ctx.fillText(tag.label, x, y + 0.5);
+      // 馬にも輪を付ける
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius + 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
 
   private cameraTarget(t: number, options: ViewOptions): CameraView {
@@ -243,8 +331,7 @@ export class TrackView {
       ctx.globalAlpha = band.active ? 1 : 0.3;
       ctx.lineWidth = band.active ? 1.5 : 1;
       ctx.strokeStyle = TRACK_THEME.rail;
-      ctx.shadowColor = TRACK_THEME.rail;
-      ctx.shadowBlur = band.active ? 6 : 0;
+      this.glow(TRACK_THEME.rail, band.active ? 6 : 0);
       ctx.beginPath();
       this.tracePath(band.inner, band.closed);
       ctx.stroke();
@@ -297,8 +384,7 @@ export class TrackView {
       ctx.setLineDash([]);
     };
     line(0, TRACK_THEME.start, 1.5, [4, 4]);
-    ctx.shadowColor = TRACK_THEME.goal;
-    ctx.shadowBlur = 10;
+    this.glow(TRACK_THEME.goal, 10);
     line(D, TRACK_THEME.goal, 2.5, []);
     ctx.shadowBlur = 0;
     const goalLabel = this.worldToScreen(this.point(D, TRACK_WIDTH + 8));
@@ -322,7 +408,7 @@ export class TrackView {
       const surge = Math.min(1, Math.max(0, (accel - SURGE_ACCEL) / 1.0));
       if (surge > 0 && s.d < this.result.setup.course.distance) surging.add(i);
       const trailLength = Math.max(0, s.v - TRAIL_BASE_SPEED) * TRAIL_PER_MPS * (1 + 0.6 * surge);
-      if (trailLength > 1) {
+      if (trailLength > 1 && !this.lite) {
         const color = frameColor(entries[i].frame);
         const segments = 10;
         ctx.lineCap = 'round';
@@ -333,10 +419,7 @@ export class TrackView {
           ctx.strokeStyle = color.stroke;
           ctx.globalAlpha = (0.45 + 0.4 * surge) * fade;
           ctx.lineWidth = radius * (1 + 0.5 * surge) * fade;
-          if (surge > 0) {
-            ctx.shadowColor = color.stroke;
-            ctx.shadowBlur = 12 * surge;
-          }
+          if (surge > 0) this.glow(color.stroke, 12 * surge);
           ctx.beginPath();
           ctx.moveTo(p0.x, p0.y);
           ctx.lineTo(p1.x, p1.y);
@@ -359,8 +442,7 @@ export class TrackView {
       if (focused) {
         ctx.strokeStyle = TRACK_THEME.focusRing;
         ctx.lineWidth = 2;
-        ctx.shadowColor = TRACK_THEME.focusRing;
-        ctx.shadowBlur = 8;
+        this.glow(TRACK_THEME.focusRing, 8);
         ctx.beginPath();
         ctx.arc(p.x, p.y, radius + 4, 0, Math.PI * 2);
         ctx.stroke();
@@ -369,10 +451,7 @@ export class TrackView {
       ctx.fillStyle = color.fill;
       ctx.strokeStyle = color.stroke;
       ctx.lineWidth = 1;
-      if (surging.has(i)) {
-        ctx.shadowColor = color.stroke;
-        ctx.shadowBlur = 14;
-      }
+      if (surging.has(i)) this.glow(color.stroke, 14);
       ctx.beginPath();
       ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
       ctx.fill();
