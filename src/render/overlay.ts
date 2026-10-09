@@ -103,7 +103,7 @@ export function referenceLap(result: RaceResult): number {
   const cruise =
     PARAMS.baseCruise[course.surface] *
     Math.pow(1600 / course.distance, PARAMS.cruiseDistanceExponent) *
-    PARAMS.conditionSpeed[course.condition];
+    PARAMS.conditionSpeed[course.surface][course.condition];
   return 200 / cruise;
 }
 

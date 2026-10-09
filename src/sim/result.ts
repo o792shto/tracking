@@ -51,7 +51,6 @@ export function judgePace(laps: number[]): RaceResult['pace'] {
   if (laps.length < 6 || laps.some((l) => !Number.isFinite(l))) return 'middle';
   const first = laps[0] + laps[1] + laps[2];
   const last = laps[laps.length - 3] + laps[laps.length - 2] + laps[laps.length - 1];
-  // 前半3Fには発馬の加速分が含まれるので、その分を差し引いて比べる
   const diff = first - last - PARAMS.paceStartAllowance;
   if (diff < -PARAMS.paceThreshold) return 'high';
   if (diff > PARAMS.paceThreshold) return 'slow';

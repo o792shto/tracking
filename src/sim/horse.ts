@@ -1,7 +1,7 @@
 import { Rng } from './rng';
 import {
   CONDITIONS,
-  DISTANCES,
+  DISTANCES_BY_SURFACE,
   type Course,
   type Entry,
   type Horse,
@@ -51,7 +51,7 @@ const STYLE_BIAS: Record<RunningStyle, Partial<HorseStats>> = {
 };
 
 function stat(rng: Rng, mean: number, bias = 0): number {
-  return Math.round(Math.min(100, Math.max(15, rng.normal(mean + bias, 8))));
+  return Math.round(Math.min(100, Math.max(15, rng.normal(mean + bias, 10))));
 }
 
 export function generateHorse(rng: Rng, id: string, classLevel = 60): Horse {
@@ -96,9 +96,20 @@ export interface CreateRaceOptions {
 /** シードからコースと出走馬を生成する */
 export function createRace(seed: number, options: CreateRaceOptions = {}): RaceSetup {
   const rng = new Rng(seed).fork(1);
-  const surface = options.course?.surface ?? (rng.chance(0.55) ? 'turf' : 'dirt');
+  const wanted = options.course?.distance;
+  const surface =
+    options.course?.surface ??
+    (wanted && !DISTANCES_BY_SURFACE.dirt.includes(wanted)
+      ? 'turf'
+      : rng.chance(0.55)
+        ? 'turf'
+        : 'dirt');
+  const distance = wanted ?? rng.pick(DISTANCES_BY_SURFACE[surface]);
+  if (!DISTANCES_BY_SURFACE[surface].includes(distance)) {
+    throw new Error(`${surface} ${distance}m のレースはありません`);
+  }
   const course: Course = {
-    distance: options.course?.distance ?? rng.pick(DISTANCES),
+    distance,
     surface,
     direction: options.course?.direction ?? (rng.chance(0.5) ? 'right' : 'left'),
     condition:

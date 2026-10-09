@@ -32,6 +32,10 @@ interface Runner {
   tolerance: number;
   spurtAt: number;
   spurting: boolean;
+  /** 直線で追い出した時刻 */
+  kickFrom: number;
+  /** 序盤の先行争いで巡航速度に上乗せする割合 */
+  dash: number;
   /** 仕掛けでの騎手の見積もり（1 より大きいと脚を使いすぎる） */
   jockeyBias: number;
   keenFrom: number;
@@ -57,6 +61,8 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
   const dt = P.dt;
   const rng = new Rng(setup.seed).fork(2);
   const invBurnExp = 1 / (P.burnExponent - 1);
+  const kickFade = P.kickFade[course.surface] * Math.pow(1600 / D, P.kickFadeDistanceExp);
+  const dashScale = P.earlyDashSurface[course.surface] * Math.pow(1200 / D, P.earlyDashDistanceExp);
   /** レースごとのペースの流れ（先頭がどれだけ飛ばすか）のばらつき */
   const paceMood = rng.normal(0, P.racePaceJitter);
   const events: RaceEvent[] = [];
@@ -95,6 +101,8 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
         P.spurtStart[style] + rng.range(-P.spurtJitter, P.spurtJitter),
       ),
       spurting: false,
+      kickFrom: Infinity,
+      dash: P.earlyDash[style] * dashScale,
       jockeyBias: 1 + rng.normal(0, P.jockeyJitter),
       keenFrom,
       keenUntil,
@@ -191,8 +199,15 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
           Math.max(0, r.stamina * r.ab.cruise) / (remaining * r.ab.burnFactor),
           invBurnExp,
         );
-        // 直線に向くまでは手綱を抑えて進出し、追い出しは直線に入ってから
-        const cap = remaining > track.finishOffset ? r.ab.cruise * (1 + P.spurtCurveCap[r.style]) : r.ab.top;
+        // 直線に向くまでは手綱を抑えて進出し、追い出しは直線に入ってから。
+        // 追い出した後は時間とともに脚が上がって最高速が落ちる（最後の1Fは少し遅くなる）
+        let cap: number;
+        if (remaining > track.finishOffset) {
+          cap = r.ab.cruise * (1 + P.spurtCurveCap[r.style]);
+        } else {
+          if (r.kickFrom === Infinity) r.kickFrom = tNext;
+          cap = r.ab.top * (1 - kickFade * (tNext - r.kickFrom));
+        }
         vTarget = clamp(
           r.ab.cruise * sustainable * r.jockeyBias,
           r.ab.cruise * P.exhaustedSpeed,
@@ -215,9 +230,10 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
         vTarget = leader.v + P.positionGain * (gap - r.targetGap);
         vTarget = clamp(vTarget, r.ab.cruise * 0.9, r.ab.cruise * (1 + P.followLimit[r.style]));
       }
-      // 序盤の位置取り争い
-      if (!finished && r.d < P.earlyDashDistance) {
-        vTarget = Math.max(vTarget, r.ab.cruise * (1 + P.earlyDash[r.style]));
+      // 序盤の位置取り争い（短距離ほど激しい）。earlyDashDistance を過ぎたら徐々に落ち着く
+      if (!finished && r.d < P.earlyDashDistance + P.earlyDashFade) {
+        const fade = clamp(1 - (r.d - P.earlyDashDistance) / P.earlyDashFade, 0, 1);
+        vTarget = Math.max(vTarget, r.ab.cruise * (1 + r.dash * fade));
       }
 
       // 前が壁

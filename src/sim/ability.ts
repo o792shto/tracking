@@ -32,19 +32,23 @@ export function effectiveAbility(entry: Entry, course: Course, includeForm = tru
     PARAMS.baseCruise[course.surface] *
     Math.pow(1600 / D, PARAMS.cruiseDistanceExponent) *
     (1 + PARAMS.speedStatRange * (stats.speed / 100 - 0.5)) *
-    PARAMS.conditionSpeed[course.condition] *
+    PARAMS.conditionSpeed[course.surface][course.condition] *
     surfaceAptitude[course.surface] *
     shortPenalty *
     form;
 
   const top =
     cruise *
-    (1 + (PARAMS.kickBase + PARAMS.kickRange * (stats.kick / 100)) * PARAMS.kickSurface[course.surface]);
+    (1 +
+      (PARAMS.kickBase + PARAMS.kickRange * (stats.kick / 100)) *
+        PARAMS.kickSurface[course.surface] *
+        Math.pow(D / 1600, PARAMS.kickDistanceExp) *
+        PARAMS.conditionKick[course.surface][course.condition]);
 
   const staminaPool =
     (D / cruise) * (PARAMS.staminaBase + PARAMS.staminaRange * (stats.stamina / 100)) * longPenalty;
 
-  const mud = PARAMS.conditionBurn[course.condition] - 1;
+  const mud = PARAMS.conditionBurn[course.surface][course.condition] - 1;
   const burnFactor = 1 + mud * (1 - PARAMS.powerMudRelief * (stats.power / 100));
 
   const startAccel = PARAMS.startAccel * (1 + 0.3 * (stats.power / 100));

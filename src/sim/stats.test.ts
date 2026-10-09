@@ -1,10 +1,11 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { formatReport } from './report';
-import { plausibleWinTime, PLAUSIBLE_LAST3F, runBatch, type BatchStats } from './stats';
-import { STYLES, type RaceDistance, type Surface, type TrackCondition } from './types';
+import { runBatch, type BatchStats } from './stats';
+import { STYLES } from './types';
 
 /**
  * SPEC.md「検証の基準」の統計テスト。1000レース回して確認する。
+ * 時計とラップの検証は reference.test.ts（JRAの参考値との比較）で行う。
  * 結果の表は `npm run sim:report` で表示できる。
  */
 const RACES = 1000;
@@ -36,26 +37,6 @@ describe(`${RACES}レースの統計`, () => {
     for (const s of STYLES) {
       expect(stats.byStyle[s].ratio, s).toBeGreaterThan(0.6);
       expect(stats.byStyle[s].ratio, s).toBeLessThan(1.6);
-    }
-  });
-
-  it('勝ち時計の平均が距離・馬場ごとのもっともらしい範囲に収まる', () => {
-    for (const [key, t] of Object.entries(stats.times)) {
-      const [d, s, c] = key.split('-') as [string, Surface, TrackCondition];
-      const [lo, hi] = plausibleWinTime(Number(d) as RaceDistance, s, c);
-      expect(t.winTime.mean, key).toBeGreaterThan(lo);
-      expect(t.winTime.mean, key).toBeLessThan(hi);
-      // 個々のレースも大きくは外れない
-      expect(t.winTime.p05, key).toBeGreaterThan(lo - 2);
-      expect(t.winTime.p95, key).toBeLessThan(hi + 2);
-    }
-  });
-
-  it('勝ち馬の上がり3Fがもっともらしい範囲に収まる', () => {
-    for (const [key, t] of Object.entries(stats.times)) {
-      const [lo, hi] = PLAUSIBLE_LAST3F[key.split('-')[1] as Surface];
-      expect(t.last3f.mean, key).toBeGreaterThan(lo);
-      expect(t.last3f.mean, key).toBeLessThan(hi);
     }
   });
 

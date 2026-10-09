@@ -143,30 +143,74 @@ export function runBatch(races: number, seedStart = 1, options: CreateRaceOption
   };
 }
 
-/** 勝ち時計がもっともらしい範囲（良馬場、秒）。重い馬場ほど遅くなる分は conditionAllowance で足す */
-export const PLAUSIBLE_WIN_TIME: Record<Surface, Record<RaceDistance, [number, number]>> = {
-  turf: { 1200: [66.5, 71.5], 1600: [91.5, 97.5], 2000: [117, 124], 2400: [142, 150] },
-  dirt: { 1200: [69, 74], 1600: [94, 101], 2000: [121, 129], 2400: [147, 156] },
-};
-/** 馬場状態による勝ち時計の許容の上乗せ（1000mあたり秒） */
-export const CONDITION_ALLOWANCE: Record<TrackCondition, number> = {
-  good: 0,
-  yielding: 0.8,
-  soft: 1.6,
-  heavy: 2.6,
-};
-/** 勝ち馬の上がり3Fのもっともらしい範囲（秒） */
-export const PLAUSIBLE_LAST3F: Record<Surface, [number, number]> = {
-  turf: [32.5, 37.5],
-  dirt: [34.5, 40],
-};
-
-export function plausibleWinTime(
-  distance: RaceDistance,
-  surface: Surface,
-  condition: TrackCondition,
-): [number, number] {
-  const [lo, hi] = PLAUSIBLE_WIN_TIME[surface][distance];
-  return [lo, hi + (CONDITION_ALLOWANCE[condition] * distance) / 1000];
+/** 1つのコース条件でまとめて回したときの、勝ち馬とラップの集計 */
+export interface CourseStats {
+  races: number;
+  winTime: number;
+  /** 平均ラップ = 勝ち時計 ÷ (距離 / 200) */
+  avgLap: number;
+  last3f: number;
+  firstLap: number;
+  /** 1F目が12秒台だった割合 */
+  firstLapIn12: number;
+  /** 各レースの最速ラップ・最遅ラップの平均 */
+  fastestLap: number;
+  slowestLap: number;
+  /** ラップ形状：2F目が最速／ラスト2F目が最速／最終Fが最遅（1F目を除く）だった割合 */
+  secondLapFastest: number;
+  penultimateFastest: number;
+  lastLapSlowest: number;
 }
 
+const mean = (a: number[]) => a.reduce((x, y) => x + y, 0) / a.length;
+
+/** コース条件を固定して races 本回す。conditions は順番に割り当てる（道悪＝重・不良をまとめて見る用） */
+export function runCourseBatch(
+  surface: Surface,
+  distance: RaceDistance,
+  conditions: TrackCondition[],
+  races: number,
+  seedStart = 1,
+): CourseStats {
+  const win: number[] = [];
+  const last3f: number[] = [];
+  const first: number[] = [];
+  const fastest: number[] = [];
+  const slowest: number[] = [];
+  let in12 = 0;
+  let second = 0;
+  let penult = 0;
+  let lastSlow = 0;
+  for (let k = 0; k < races; k++) {
+    const condition = conditions[k % conditions.length];
+    const r = simulateRace(createRace(seedStart + k, { course: { surface, distance, condition } }), {
+      record: false,
+    });
+    const laps = r.laps;
+    win.push(r.finish[0].time);
+    last3f.push(r.finish[0].last3f);
+    first.push(laps[0]);
+    if (laps[0] >= 12 && laps[0] < 13) in12++;
+    const min = Math.min(...laps);
+    const maxAfterFirst = Math.max(...laps.slice(1));
+    fastest.push(min);
+    slowest.push(Math.max(...laps));
+    if (laps.indexOf(min) === 1) second++;
+    if (laps.indexOf(min) === laps.length - 2) penult++;
+    if (laps.lastIndexOf(maxAfterFirst) === laps.length - 1) lastSlow++;
+  }
+  const winTime = mean(win);
+  return {
+    races,
+    winTime,
+    avgLap: winTime / (distance / 200),
+    last3f: mean(last3f),
+    firstLap: mean(first),
+    firstLapIn12: in12 / races,
+    fastestLap: mean(fastest),
+    slowestLap: mean(slowest),
+    secondLapFastest: second / races,
+    penultimateFastest: penult / races,
+    lastLapSlowest: lastSlow / races,
+  };
+}

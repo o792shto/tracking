@@ -27,3 +27,9 @@
 - `src/store/` — Zustandストア（所持コイン、開催データ、成績）
 
 シミュレーションの調整用の数値は `src/sim/params.ts` に集約する。
+
+## 時計・ラップの基準
+
+- `docs/reference/jra-lap-reference.md`（機械可読版は `src/sim/reference.ts`）を妥当性チェックに使う。おおよその目安で、実データではない
+- 実データが手に入ったらそちらを優先する。参考値のない条件（ダート1600m・2000m など）は推測で埋めない
+- 検証は `src/sim/reference.test.ts`
