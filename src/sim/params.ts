@@ -33,7 +33,7 @@ export const PARAMS = {
   kickBase: 0.0,
   kickRange: 0.13,
   /** 末脚の伸びの馬場（芝・ダート）による倍率。ダートは上がりがかかる */
-  kickSurface: { turf: 1, dirt: 0.55 } as Record<Surface, number>,
+  kickSurface: { turf: 1, dirt: 0.75 } as Record<Surface, number>,
   /** 仕掛けでの騎手の見積もり違い（標準偏差） */
   jockeyJitter: 0.02,
 
@@ -100,6 +100,11 @@ export const PARAMS = {
   nigePushSolo: 0.008,
   nigePushDuel: 0.03,
 
+  /** 仕掛けてから直線に入るまでの速度の上限（巡航速度に対する上乗せ）。直線で一気に追い出す。
+   *  後ろの脚質ほど3〜4コーナーで外からまくって進出する */
+  spurtCurveCap: { nige: 0.0, senko: 0.01, sashi: 0.035, oikomi: 0.05 } as Record<RunningStyle, number>,
+  /** 追い出してからの加速度（m/s²） */
+  spurtAccel: 1.6,
   /** 仕掛け開始（残り距離, m）の平均。±spurtJitter */
   spurtStart: { nige: 420, senko: 520, sashi: 640, oikomi: 800 } as Record<RunningStyle, number>,
   spurtJitter: 90,

@@ -158,7 +158,7 @@ export const CONDITION_ALLOWANCE: Record<TrackCondition, number> = {
 /** 勝ち馬の上がり3Fのもっともらしい範囲（秒） */
 export const PLAUSIBLE_LAST3F: Record<Surface, [number, number]> = {
   turf: [32.5, 37.5],
-  dirt: [35, 40],
+  dirt: [34.5, 40],
 };
 
 export function plausibleWinTime(

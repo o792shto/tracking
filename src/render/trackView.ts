@@ -23,6 +23,13 @@ const TRACK_WIDTH = 24;
 /** 自動カメラ：序盤〜中盤で全体表示と先頭集団追従を切り替える周期（秒） */
 const AUTO_CYCLE = 14;
 const AUTO_OVERVIEW_PART = 7;
+/** 加速度を測る時間幅（秒） */
+const ACCEL_WINDOW = 0.4;
+/** 軌跡の長さ：速度がこれを超えた分 × TRAIL_PER_MPS (m) */
+const TRAIL_BASE_SPEED = 13;
+const TRAIL_PER_MPS = 5;
+/** これ以上の加速度（m/s²）で「伸びている」演出を出す */
+const SURGE_ACCEL = 0.6;
 
 export interface ViewOptions {
   cameraMode: CameraMode;
@@ -39,6 +46,8 @@ export class TrackView {
   private ctx: CanvasRenderingContext2D;
   private result: RaceResult;
   private samples: HorseSample[] = [];
+  /** 加速の判定用に、少し前の時刻の状態 */
+  private earlier: HorseSample[] = [];
   private view: CameraView | null = null;
   private width = 0;
   private height = 0;
@@ -100,6 +109,7 @@ export class TrackView {
     const log = this.result.log;
     if (!log || this.width === 0) return;
     this.samples = sampleAt(log, t, this.samples);
+    this.earlier = sampleAt(log, t - ACCEL_WINDOW, this.earlier);
     const target = this.cameraTarget(t, options);
     this.view = this.view ? approach(this.view, target, 3.2, frameDt) : target;
 
@@ -147,6 +157,20 @@ export class TrackView {
             .map((s) => this.point(Math.min(s.d, D + 60), s.x));
           near.push(this.point(D + 20, 0), this.point(D - 30, TRACK_WIDTH * 0.6));
           return fitRect(boundsOf(near, 8), w, h, 0, 9);
+        }
+        if (D - leader.d <= TRACK.finishOffset) {
+          // 直線：ゴール線を画面に入れて固定気味にし、馬がゴールへ迫っていく動きを見せる。
+          // 先頭がゴールに近づくほど枠が縮んで寄っていく
+          const front = order
+            .slice(0, Math.max(5, Math.ceil(order.length / 2)))
+            .map((i) => samples[i])
+            .filter((s) => leader.d - s.d < 30);
+          const rear = Math.min(...front.map((s) => s.d));
+          const pts = front.map((s) => this.point(s.d, s.x));
+          // 前方に余白（ゴールが近づいたらゴール線で止める）、後ろにも少し余白
+          const ahead = Math.min(D + 12, leader.d + 70);
+          pts.push(this.point(ahead, 0), this.point(ahead, TRACK_WIDTH * 0.5), this.point(rear - 20, 0));
+          return fitRect(boundsOf(pts, 6), w, h, 0, 9);
         }
         if (pastFourthCorner(TRACK, course, leader.d)) {
           // 4コーナー以降：先頭〜中団に寄ってズーム
@@ -280,24 +304,35 @@ export class TrackView {
     // 後ろの馬から描いて、前の馬が上に重なるようにする
     const order = runningOrder(this.samples).reverse();
 
+    // 軌跡：速度が上がるほど長く、加速中は太く明るくして「伸び」を見せる
+    const surging = new Set<number>();
     for (const i of order) {
       const s = this.samples[i];
-      const trailLength = Math.max(0, s.v - 8) * 2.2;
+      const accel = (s.v - (this.earlier[i]?.v ?? s.v)) / ACCEL_WINDOW;
+      const surge = Math.min(1, Math.max(0, (accel - SURGE_ACCEL) / 1.0));
+      if (surge > 0 && s.d < this.result.setup.course.distance) surging.add(i);
+      const trailLength = Math.max(0, s.v - TRAIL_BASE_SPEED) * TRAIL_PER_MPS * (1 + 0.6 * surge);
       if (trailLength > 1) {
         const color = frameColor(entries[i].frame);
-        const segments = 8;
+        const segments = 10;
+        ctx.lineCap = 'round';
         for (let k = 0; k < segments; k++) {
           const p0 = this.worldToScreen(this.point(s.d - (trailLength * k) / segments, s.x));
           const p1 = this.worldToScreen(this.point(s.d - (trailLength * (k + 1)) / segments, s.x));
+          const fade = 1 - k / segments;
           ctx.strokeStyle = color.stroke;
-          ctx.globalAlpha = 0.55 * (1 - k / segments);
-          ctx.lineWidth = radius * 1.1 * (1 - k / segments);
-          ctx.lineCap = 'round';
+          ctx.globalAlpha = (0.45 + 0.4 * surge) * fade;
+          ctx.lineWidth = radius * (1 + 0.5 * surge) * fade;
+          if (surge > 0) {
+            ctx.shadowColor = color.stroke;
+            ctx.shadowBlur = 12 * surge;
+          }
           ctx.beginPath();
           ctx.moveTo(p0.x, p0.y);
           ctx.lineTo(p1.x, p1.y);
           ctx.stroke();
         }
+        ctx.shadowBlur = 0;
         ctx.globalAlpha = 1;
       }
     }
@@ -324,9 +359,14 @@ export class TrackView {
       ctx.fillStyle = color.fill;
       ctx.strokeStyle = color.stroke;
       ctx.lineWidth = 1;
+      if (surging.has(i)) {
+        ctx.shadowColor = color.stroke;
+        ctx.shadowBlur = 14;
+      }
       ctx.beginPath();
       ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.stroke();
       if (radius >= 6.5) {
         ctx.fillStyle = color.text;

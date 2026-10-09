@@ -191,10 +191,12 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
           Math.max(0, r.stamina * r.ab.cruise) / (remaining * r.ab.burnFactor),
           invBurnExp,
         );
+        // 直線に向くまでは手綱を抑えて進出し、追い出しは直線に入ってから
+        const cap = remaining > track.finishOffset ? r.ab.cruise * (1 + P.spurtCurveCap[r.style]) : r.ab.top;
         vTarget = clamp(
           r.ab.cruise * sustainable * r.jockeyBias,
           r.ab.cruise * P.exhaustedSpeed,
-          r.ab.top,
+          Math.min(cap, r.ab.top),
         );
       } else if (r.style === 'nige' || keen) {
         const duel = leader !== r || hasRivalNear(runners, r, 1.5);
@@ -243,7 +245,8 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       }
 
       // 速度
-      const acc = r.v < r.ab.cruise * 0.85 && r.d < 300 ? r.ab.startAccel : P.accel;
+      const acc =
+        r.v < r.ab.cruise * 0.85 && r.d < 300 ? r.ab.startAccel : r.spurting ? P.spurtAccel : P.accel;
       const dv = vTarget - r.v;
       r.v = Math.max(0, r.v + clamp(dv, -P.decel * dt, acc * dt));
 

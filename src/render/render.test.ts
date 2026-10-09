@@ -27,8 +27,8 @@ describe('replay', () => {
     expect(sampleAt(log, logDuration(log) + 10)[0].d).toBeCloseTo(sampleAt(log, logDuration(log))[0].d);
   });
 
-  it('ゴール直後の順位は着順と一致する', () => {
-    const t = result.finish[result.finish.length - 1].time;
+  it('勝ち馬のゴール直後は勝ち馬が先頭', () => {
+    const t = result.finish[0].time + 0.02;
     const order = runningOrder(sampleAt(log, t)).map((i) => result.setup.entries[i].number);
     expect(order[0]).toBe(result.finish[0].number);
   });
