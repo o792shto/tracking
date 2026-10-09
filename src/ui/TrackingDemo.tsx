@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CONDITION_LABEL,
-  STYLE_LABEL,
   SURFACE_LABEL,
   createRace,
   formatTime,
@@ -10,13 +9,17 @@ import {
 } from '../sim';
 import {
   RacePlayer,
-  frameColor,
+  activeTelop,
+  fieldLength,
   runningOrder,
   sampleAt,
+  standings,
   type CameraMode,
   type PlaybackSpeed,
   type PlayerState,
 } from '../render';
+import { LapChart } from './LapChart';
+import { Standings } from './Standings';
 
 const CAMERA_MODES: { mode: CameraMode; label: string }[] = [
   { mode: 'auto', label: '自動' },
@@ -29,7 +32,7 @@ const SPEEDS: PlaybackSpeed[] = [1, 2, 4];
 /** 確認用ページなので固定の見本レースから始める */
 const SAMPLE_SEED = 20261009;
 
-/** 段階2の確認用ページ：仮の出走馬でレースを1本流す */
+/** 確認用ページ：仮の出走馬でレースを1本流し、データ表示を重ねる */
 export function TrackingDemo() {
   const [seed, setSeed] = useState(SAMPLE_SEED);
   const result: RaceResult = useMemo(() => simulateRace(createRace(seed)), [seed]);
@@ -84,6 +87,18 @@ export function TrackingDemo() {
   const remaining = Math.max(0, course.distance - leaderD);
   const finished = state.time >= result.finish[0].time;
 
+  // 順位表：前回の並びを引き継いで、並んだ馬の順位がちらつかないようにする
+  const prevOrder = useRef<{ result: RaceResult; order: number[] } | null>(null);
+  const rows = useMemo(() => {
+    if (!samples.length) return [];
+    const prev = prevOrder.current?.result === result ? prevOrder.current.order : null;
+    const r = standings(result, samples, state.time, prev);
+    prevOrder.current = { result, order: r.map((row) => row.index) };
+    return r;
+  }, [result, samples, state.time]);
+  const telop = finished ? null : activeTelop(result, leaderD);
+  const field = samples.length && !finished ? fieldLength(samples) : null;
+
   const selectHorse = (num: number) => {
     setFollow(num);
     setCamera('horse');
@@ -112,38 +127,33 @@ export function TrackingDemo() {
             <span className="label">残り</span>
             <span className="value">{finished ? 'GOAL' : `${Math.ceil(remaining)}m`}</span>
           </div>
+          <div className="readout">
+            <span className="label">馬群</span>
+            <span className="value small">{field === null ? '—' : `${Math.round(field)}m`}</span>
+          </div>
         </div>
       </header>
 
       <div className="stage-row">
-        <div className="stage" ref={stageRef}>
-          <canvas ref={canvasRef} aria-label="レースのトラッキング表示" />
+        <div className="stage-col">
+          <div className="stage" ref={stageRef}>
+            <canvas ref={canvasRef} aria-label="レースのトラッキング表示" />
+            {telop && (
+              <div className="telop" key={telop} role="status">
+                <span className="telop-label">残り</span>
+                <span className="telop-value">{telop}</span>
+                <span className="telop-unit">m</span>
+              </div>
+            )}
+          </div>
+          <LapChart result={result} time={state.time} />
         </div>
 
-        <aside className="field" aria-label="出走馬">
-          <h2>出走馬 <span className="hint">タップで追従</span></h2>
-          <ul>
-            {entries.map((e) => {
-              const c = frameColor(e.frame);
-              const active = follow === e.number;
-              return (
-                <li key={e.number}>
-                  <button
-                    type="button"
-                    className={active ? 'horse active' : 'horse'}
-                    onClick={() => selectHorse(e.number)}
-                    aria-pressed={active}
-                  >
-                    <span className="num" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
-                      {e.number}
-                    </span>
-                    <span className="name">{e.horse.name}</span>
-                    <span className="style">{STYLE_LABEL[e.horse.style]}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+        <aside className="field" aria-label="順位">
+          <h2>
+            順位 <span className="hint">タップで追従</span>
+          </h2>
+          <Standings rows={rows} entries={entries} follow={follow} onSelect={selectHorse} time={state.time} />
         </aside>
       </div>
 
