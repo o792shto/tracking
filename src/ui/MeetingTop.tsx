@@ -82,7 +82,9 @@ export function MeetingTop() {
                 {status === 'done' && top3 && (
                   <span className="top3" aria-label={`1着から ${top3.join('、')}番`}>
                     {top3.map((num) => {
-                      const c = frameColor(entries[num - 1].frame);
+                      const entry = entries[num - 1];
+                      if (!entry) return null;
+                      const c = frameColor(entry.frame);
                       return (
                         <span key={num} className="chip" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
                           {num}

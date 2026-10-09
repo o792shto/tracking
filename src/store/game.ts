@@ -5,6 +5,11 @@ import { RACES_PER_MEETING } from '../sim/meeting';
 import { loadJSON, removeKey, saveJSON } from './storage';
 
 export const STORAGE_KEY = 'keiba-tracking/save-v1';
+/**
+ * 保存データの形式の版。番組（開催日ごとのレース）が変わったら上げる。
+ * 古い版のデータは、コイン・成績は引き継ぎ、その日の進み具合（結果・未精算の馬券）はやり直す
+ */
+export const SAVE_VERSION = 2;
 
 export type Screen = 'top' | 'card' | 'watch' | 'result' | 'record';
 
@@ -35,6 +40,7 @@ export interface Totals {
 
 /** 保存する部分 */
 interface SaveData {
+  version: number;
   coins: number;
   meetingSeed: number;
   raceIndex: number;
@@ -69,6 +75,7 @@ const HISTORY_LIMIT = 30;
 
 function initialData(): SaveData {
   return {
+    version: SAVE_VERSION,
     coins: BETTING.initialCoins,
     meetingSeed: 1,
     raceIndex: 0,
@@ -85,13 +92,27 @@ function isSaveData(x: unknown): x is SaveData {
   return !!d && typeof d.coins === 'number' && Array.isArray(d.placed) && typeof d.totals === 'object';
 }
 
+/** 古い版の保存データは、その日のレースが今の番組と合わないので、日の初めからやり直す（買った馬券は返金） */
+export function migrate(saved: SaveData): SaveData {
+  const data = { ...initialData(), ...saved };
+  if (saved.version === SAVE_VERSION) return data;
+  return {
+    ...data,
+    version: SAVE_VERSION,
+    coins: data.coins + placedTotal(data.placed),
+    raceIndex: 0,
+    placed: [],
+    results: {},
+  };
+}
+
 export function placedTotal(placed: Bet[]): number {
   return placed.reduce((a, b) => a + b.stake, 0);
 }
 
 export function createGameStore(load = true) {
   const saved = load ? loadJSON<unknown>(STORAGE_KEY) : null;
-  const data = isSaveData(saved) ? { ...initialData(), ...saved } : initialData();
+  const data = isSaveData(saved) ? migrate(saved) : initialData();
 
   const store = createStore<GameState & GameActions>()((set, get) => ({
     ...data,
@@ -175,6 +196,7 @@ export function createGameStore(load = true) {
 
   store.subscribe((s) => {
     const save: SaveData = {
+      version: SAVE_VERSION,
       coins: s.coins,
       meetingSeed: s.meetingSeed,
       raceIndex: s.raceIndex,

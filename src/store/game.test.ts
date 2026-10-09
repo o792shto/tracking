@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BETTING, type Payouts } from '../betting';
-import { createGameStore } from './game';
+import { SAVE_VERSION, STORAGE_KEY, createGameStore } from './game';
 import { loadJSON, saveJSON } from './storage';
 
 const payouts: Payouts = {
@@ -97,5 +97,39 @@ describe('保存', () => {
     expect(b.getState().coins).toBe(a.getState().coins);
     expect(b.getState().totals).toEqual(a.getState().totals);
     expect(b.getState().screen).toBe('top');
+  });
+
+  it('古い版の保存データは、コインと成績を引き継いでその日を最初からやり直す', () => {
+    const mem = new Map<string, string>();
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (k: string) => mem.get(k) ?? null,
+        setItem: (k: string, v: string) => void mem.set(k, v),
+        removeItem: (k: string) => void mem.delete(k),
+      },
+    });
+    const totals = { spent: 500, returned: 0, bestPayout: 0, races: 1, hitRaces: 0 };
+    // 版の番号がない（段階4の頃の）データ。結果の馬番は今の番組の頭数を超えることがある
+    mem.set(
+      STORAGE_KEY,
+      JSON.stringify({
+        coins: 9000,
+        meetingSeed: 3,
+        raceIndex: 5,
+        placed: [{ type: 'win', selection: [16], stake: 300 }],
+        results: { 0: [18, 17, 16] },
+        totals,
+        history: [],
+        rescues: 0,
+      }),
+    );
+    const s = createGameStore().getState();
+    expect(s.version).toBe(SAVE_VERSION);
+    expect(s.coins).toBe(9300);
+    expect(s.meetingSeed).toBe(3);
+    expect(s.raceIndex).toBe(0);
+    expect(s.placed).toEqual([]);
+    expect(s.results).toEqual({});
+    expect(s.totals).toEqual(totals);
   });
 });
