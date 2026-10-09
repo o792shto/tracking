@@ -1212,3 +1212,23 @@ button.danger {
 .grade.G3 {
   background: #23955a;
 }
+
+/* 描画エラーの画面 */
+.crash {
+  padding: 24px 16px;
+}
+.crash pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 12px;
+  background: var(--panel);
+  padding: 12px;
+  border-radius: 6px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.crash-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

@@ -13,10 +13,31 @@ const fonts = html.match(/<link\s+rel="stylesheet"\s+href="(https:\/\/fonts\.goo
 const code = readFileSync(join(dist, js), 'utf8').replace(/<\/script/gi, '<\\/script');
 const style = readFileSync(join(dist, css), 'utf8');
 
+// 起動チェック（古い書き方の普通のスクリプト）。本体が読み込めなかったり例外で止まったりしたとき、
+// 真っ黒の画面のままにせず、エラーの内容とブラウザの情報を表示する
+const BOOT_CHECK = `(function () {
+  var errors = [];
+  function add(m) { errors.push(String(m)); }
+  window.addEventListener('error', function (e) { add((e.message || e.error) + (e.filename ? ' @' + e.lineno + ':' + e.colno : '')); });
+  window.addEventListener('unhandledrejection', function (e) { add('Promise: ' + (e.reason && e.reason.stack || e.reason)); });
+  function show() {
+    var root = document.getElementById('root');
+    if (window.__keibaBooted && root && root.childNodes.length) return;
+    var box = document.createElement('pre');
+    box.style.cssText = 'white-space:pre-wrap;word-break:break-all;color:#fff;background:#300;padding:12px;margin:16px;font:12px monospace';
+    box.textContent = 'ゲームを起動できませんでした。この内容（またはスクリーンショット）を知らせてください。\\n\\n' +
+      (errors.length ? errors.join('\\n') : '（エラーの記録なし：スクリプトが読み込まれていない可能性）') +
+      '\\n\\nbooted=' + !!window.__keibaBooted + '\\n' + navigator.userAgent;
+    document.body.appendChild(box);
+  }
+  window.addEventListener('load', function () { setTimeout(show, 4000); });
+})();`;
+
 const out = `<title>競馬トラッキング</title>
 ${fonts ? `<link rel="stylesheet" href="${fonts}">` : ''}
 <style>${style}</style>
 <div id="root"></div>
+<script>${BOOT_CHECK}</script>
 <script type="module">${code}</script>
 `;
 writeFileSync(join(dist, 'artifact.html'), out);

@@ -4,7 +4,7 @@ import { BETTING, payoutFor, type Bet, type Payouts } from '../betting';
 import { RACES_PER_MEETING } from '../sim/meeting';
 import { loadJSON, removeKey, saveJSON } from './storage';
 
-const STORAGE_KEY = 'keiba-tracking/save-v1';
+export const STORAGE_KEY = 'keiba-tracking/save-v1';
 
 export type Screen = 'top' | 'card' | 'watch' | 'result' | 'record';
 
