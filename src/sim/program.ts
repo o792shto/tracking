@@ -1,5 +1,6 @@
 import { GRADED_RACES_2026, type AgeCondition, type GradedRace, type Venue } from './gradedRaces';
 import { createRace } from './horse';
+import { findStart } from './racePath';
 import { Rng, hashSeed } from './rng';
 import { CONDITIONS, DISTANCES_BY_SURFACE, type Direction, type RaceSetup, type Surface, type TrackCondition } from './types';
 
@@ -65,10 +66,19 @@ export interface ProgramRace {
   runners: number;
 }
 
-/** 最も近い標準距離（等距離なら長い方） */
-export function nearestStandardDistance(surface: Surface, distance: number): number {
-  let best = STANDARD_DISTANCES[surface][0];
-  for (const d of STANDARD_DISTANCES[surface]) {
+/**
+ * その場で使える標準距離。実在しない距離（コースの資料に発走地点がない距離）は番組に出さない。
+ * 例：中山・京都のダートは1200mだけ、東京の芝は1600/2000/2400m
+ */
+export function venueDistances(venue: Venue, surface: Surface): number[] {
+  return STANDARD_DISTANCES[surface].filter((d) => findStart(venue, surface, d) !== undefined);
+}
+
+/** 最も近い標準距離（等距離なら長い方）。競馬場を指定すると、その場で実在する距離から選ぶ */
+export function nearestStandardDistance(surface: Surface, distance: number, venue?: Venue): number {
+  const candidates = venue ? venueDistances(venue, surface) : STANDARD_DISTANCES[surface];
+  let best = candidates[0];
+  for (const d of candidates) {
     const diff = Math.abs(d - distance);
     const bestDiff = Math.abs(best - distance);
     if (diff < bestDiff || (diff === bestDiff && d > best)) best = d;
@@ -79,7 +89,8 @@ export function nearestStandardDistance(surface: Surface, distance: number): num
 /**
  * 重賞をゲームのメインレースにする。
  * - 2歳戦は G1 以外をすべて「オープン」に置き換える
- * - G3 以下（置き換えたオープンを含む）で標準距離以外のものは「オープン」にし、距離も最も近い標準距離にする
+ * - G3 以下（置き換えたオープンを含む）で標準距離以外のもの、またはその場で実在しない標準距離のものは
+ *   「オープン」にし、距離もその場で実在する最も近い標準距離にする
  */
 export function mainRaceOf(g: GradedRace): Omit<ProgramRace, 'no' | 'runners'> {
   let raceClass: RaceClass = g.grade;
@@ -89,11 +100,11 @@ export function mainRaceOf(g: GradedRace): Omit<ProgramRace, 'no' | 'runners'> {
     raceClass = 'open';
     name = CLASS_LABEL.open;
   }
-  const standard = STANDARD_DISTANCES[g.surface].includes(distance);
+  const standard = venueDistances(g.venue, g.surface).includes(distance);
   if ((raceClass === 'G3' || raceClass === 'open') && !standard) {
     raceClass = 'open';
     name = CLASS_LABEL.open;
-    distance = nearestStandardDistance(g.surface, distance);
+    distance = nearestStandardDistance(g.surface, distance, g.venue);
   }
   return { raceClass, name, surface: g.surface, distance, age: g.age, fillies: g.fillies };
 }
@@ -202,7 +213,7 @@ export function raceDay(serial: number): RaceDay {
       surface: slot.surface,
       age: slot.age,
       fillies: no === filliesNo,
-      distance: rng.pick(STANDARD_DISTANCES[slot.surface]),
+      distance: rng.pick(venueDistances(main.venue, slot.surface)),
       runners: rng.int(...RUNNERS[slot.raceClass]),
     });
   }

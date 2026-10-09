@@ -5,6 +5,7 @@ import { createRace } from './horse';
 import { createMeeting } from './meeting';
 import { horseProfiles } from './profile';
 import { DAYS_PER_YEAR, mainRaceOf, nearestStandardDistance, raceDay, raceLevel } from './program';
+import { racePath } from './racePath';
 import { lapMarks } from './result';
 
 const byName = (name: string) => mainRaceOf(GRADED_RACES_2026.find((g) => g.name === name)!);
@@ -27,7 +28,8 @@ describe('重賞の置き換え', () => {
     expect(byName('阪急杯')).toMatchObject({ raceClass: 'open', distance: 1600 });
     expect(byName('ダイヤモンドS')).toMatchObject({ raceClass: 'open', distance: 2400 });
     expect(byName('根岸S')).toMatchObject({ raceClass: 'open', surface: 'dirt', distance: 1600 });
-    expect(byName('ユニコーンS')).toMatchObject({ raceClass: 'open', surface: 'dirt', distance: 2000 });
+    // 京都ダートで実在する標準距離は1200mだけ
+    expect(byName('ユニコーンS')).toMatchObject({ raceClass: 'open', surface: 'dirt', distance: 1200 });
     expect(byName('京王杯2歳S')).toMatchObject({ raceClass: 'open', distance: 1600 });
     expect(byName('東スポ杯2歳S')).toMatchObject({ raceClass: 'open', distance: 2000 });
   });
@@ -47,6 +49,12 @@ describe('重賞の置き換え', () => {
     expect(nearestStandardDistance('dirt', 1400)).toBe(1600);
     expect(nearestStandardDistance('dirt', 1900)).toBe(2000);
     expect(nearestStandardDistance('dirt', 2400)).toBe(2000);
+    // その場で実在する距離から選ぶ
+    expect(nearestStandardDistance('dirt', 1400, '東京')).toBe(1600);
+    expect(nearestStandardDistance('dirt', 1800, '中山')).toBe(1200);
+    expect(nearestStandardDistance('dirt', 1800, '阪神')).toBe(2000);
+    expect(nearestStandardDistance('turf', 1400, '東京')).toBe(1600);
+    expect(nearestStandardDistance('turf', 2200, '中山')).toBe(2000);
   });
 });
 
@@ -123,6 +131,17 @@ describe('近走の数', () => {
           else if (race.program.age === '2') expect(n >= 1 && n <= 4).toBe(true);
           else expect(n).toBe(4);
         }
+      }
+    }
+  });
+});
+
+describe('実在しない距離', () => {
+  it('1年分の番組に、その場で実在しない距離（発走地点が資料にない距離）のレースはない', () => {
+    for (let serial = 1; serial <= DAYS_PER_YEAR; serial++) {
+      for (const race of createMeeting(serial).races) {
+        const { course } = race.setup;
+        expect(racePath(course).estimatedStart, `${serial}日目 ${race.no}R ${course.venue}${course.surface}${course.distance}`).toBe(false);
       }
     }
   });
