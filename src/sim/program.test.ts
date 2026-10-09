@@ -28,8 +28,8 @@ describe('重賞の置き換え', () => {
     expect(byName('阪急杯')).toMatchObject({ raceClass: 'open', distance: 1600 });
     expect(byName('ダイヤモンドS')).toMatchObject({ raceClass: 'open', distance: 2400 });
     expect(byName('根岸S')).toMatchObject({ raceClass: 'open', surface: 'dirt', distance: 1600 });
-    // 京都ダートで実在する標準距離は1200mだけ
-    expect(byName('ユニコーンS')).toMatchObject({ raceClass: 'open', surface: 'dirt', distance: 1200 });
+    // 京都ダートで実在する標準距離は1200mと1800m
+    expect(byName('ユニコーンS')).toMatchObject({ raceClass: 'open', surface: 'dirt', distance: 1800 });
     expect(byName('京王杯2歳S')).toMatchObject({ raceClass: 'open', distance: 1600 });
     expect(byName('東スポ杯2歳S')).toMatchObject({ raceClass: 'open', distance: 2000 });
   });
@@ -51,8 +51,9 @@ describe('重賞の置き換え', () => {
     expect(nearestStandardDistance('dirt', 2400)).toBe(2000);
     // その場で実在する距離から選ぶ
     expect(nearestStandardDistance('dirt', 1400, '東京')).toBe(1600);
-    expect(nearestStandardDistance('dirt', 1800, '中山')).toBe(1200);
-    expect(nearestStandardDistance('dirt', 1800, '阪神')).toBe(2000);
+    expect(nearestStandardDistance('dirt', 1800, '中山')).toBe(1800);
+    expect(nearestStandardDistance('dirt', 1800, '東京')).toBe(1600);
+    expect(nearestStandardDistance('dirt', 1900, '阪神')).toBe(2000);
     expect(nearestStandardDistance('turf', 1400, '東京')).toBe(1600);
     expect(nearestStandardDistance('turf', 2200, '中山')).toBe(2000);
   });

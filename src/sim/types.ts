@@ -9,10 +9,10 @@ export type RunningStyle = 'nige' | 'senko' | 'sashi' | 'oikomi';
 
 /** 番組で使う標準の距離（重賞以外のレースはこの中から選ぶ） */
 export const DISTANCES: readonly RaceDistance[] = [1200, 1600, 2000, 2400];
-/** 馬場ごとに施行する距離（ダートに2400mはない） */
+/** 馬場ごとに施行する距離（ダートに2400mはなく、1800mがある） */
 export const DISTANCES_BY_SURFACE: Record<Surface, readonly RaceDistance[]> = {
   turf: [1200, 1600, 2000, 2400],
-  dirt: [1200, 1600, 2000],
+  dirt: [1200, 1600, 1800, 2000],
 };
 export const SURFACES: readonly Surface[] = ['turf', 'dirt'];
 export const CONDITIONS: readonly TrackCondition[] = ['good', 'yielding', 'soft', 'heavy'];
