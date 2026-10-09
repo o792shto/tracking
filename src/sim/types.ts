@@ -79,6 +79,8 @@ export interface RaceSetup {
   seed: number;
   course: Course;
   entries: Entry[];
+  /** 出馬表に出す近走の数の幅（最小, 最大）。省略時は4走 */
+  pastRuns?: [number, number];
 }
 
 export type RaceEventKind = 'slowStart' | 'keen' | 'blocked';

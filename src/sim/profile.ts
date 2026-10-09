@@ -2,6 +2,9 @@ import { apparentStrength } from './rating';
 import { Rng } from './rng';
 import { DISTANCES_BY_SURFACE, SURFACE_LABEL, type RaceSetup, type Surface } from './types';
 
+/** 近走の数（2歳戦以外はすべて4走） */
+const DEFAULT_PAST_RUNS: [number, number] = [4, 4];
+
 /** 出馬表に出す過去のレース1走分（架空） */
 export interface PastRun {
   rank: number;
@@ -40,7 +43,8 @@ export function horseProfiles(setup: RaceSetup): HorseProfile[] {
 
   return setup.entries.map((entry, i) => {
     const z = (strength[i] - mean) / sd;
-    const runs = rng.int(2, 4);
+    const [minRuns, maxRuns] = setup.pastRuns ?? DEFAULT_PAST_RUNS;
+    const runs = rng.int(minRuns, maxRuns);
     const recent: PastRun[] = [];
     for (let k = 0; k < runs; k++) {
       const runners = rng.int(10, 16);

@@ -93,6 +93,8 @@ export interface CreateRaceOptions {
   runners?: number;
   /** 出走馬の能力水準（能力値の平均）。省略時は60（3勝クラス相当） */
   classLevel?: number;
+  /** 出馬表に出す近走の数の幅（最小, 最大）。省略時は4走 */
+  pastRuns?: [number, number];
 }
 
 /** シードからコースと出走馬を生成する */
@@ -135,5 +137,7 @@ export function createRace(seed: number, options: CreateRaceOptions = {}): RaceS
       form: 1 + rng.normal(0, 0.006),
     });
   }
-  return { seed, course, entries };
+  const setup: RaceSetup = { seed, course, entries };
+  if (options.pastRuns) setup.pastRuns = options.pastRuns;
+  return setup;
 }

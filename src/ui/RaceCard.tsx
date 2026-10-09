@@ -171,6 +171,7 @@ export function RaceCard() {
                     <td>{STYLE_LABEL[e.horse.style]}</td>
                     <td>
                       <span className="recent">
+                        {profile.recent.length === 0 && <span className="muted">初出走</span>}
                         {profile.recent.map((r, k) => (
                           <span key={k} className={r.rank <= 3 ? 'good' : ''} title={formatPastRun(r)}>
                             {r.rank}

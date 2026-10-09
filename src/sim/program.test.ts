@@ -3,6 +3,7 @@ import { simulateRace } from './engine';
 import { GRADED_RACES_2026 } from './gradedRaces';
 import { createRace } from './horse';
 import { createMeeting } from './meeting';
+import { horseProfiles } from './profile';
 import { DAYS_PER_YEAR, mainRaceOf, nearestStandardDistance, raceDay, raceLevel } from './program';
 import { lapMarks } from './result';
 
@@ -109,5 +110,20 @@ describe('標準以外の距離のレース', () => {
     expect(r.laps.reduce((a, b) => a + b, 0)).toBeCloseTo(r.finish[0].time, 1);
     expect(r.first3f).toBeGreaterThan(33);
     expect(r.first3f).toBeLessThan(40);
+  });
+});
+
+describe('近走の数', () => {
+  it('2歳戦以外は4走、新馬戦は0走、2歳戦は1〜4走', () => {
+    for (let serial = 1; serial <= 98; serial += 7) {
+      for (const race of createMeeting(serial).races) {
+        const counts = horseProfiles(race.setup).map((p) => p.recent.length);
+        for (const n of counts) {
+          if (race.raceClass === 'newcomer') expect(n).toBe(0);
+          else if (race.program.age === '2') expect(n >= 1 && n <= 4).toBe(true);
+          else expect(n).toBe(4);
+        }
+      }
+    }
   });
 });

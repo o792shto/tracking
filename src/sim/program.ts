@@ -217,6 +217,16 @@ export function raceLevel(race: ProgramRace): number {
 /** 回り（東京は左回り、中山・京都・阪神は右回り） */
 export const VENUE_DIRECTION: Record<Venue, Direction> = { 東京: 'left', 中山: 'right', 京都: 'right', 阪神: 'right' };
 
+/**
+ * 出馬表に出す近走の数。新馬戦はまだ走っていないので0、2歳戦はキャリアが浅いので1〜4走、
+ * それ以外は4走
+ */
+export function pastRunsFor(race: Pick<ProgramRace, 'raceClass' | 'age'>): [number, number] {
+  if (race.raceClass === 'newcomer') return [0, 0];
+  if (race.age === '2') return [1, 4];
+  return [4, 4];
+}
+
 /** 番組のレースから出走表を作る */
 export function setupFor(day: RaceDay, race: ProgramRace): RaceSetup {
   const seed = hashSeed(day.serial * 131 + race.no);
@@ -230,5 +240,6 @@ export function setupFor(day: RaceDay, race: ProgramRace): RaceSetup {
     },
     runners: race.runners,
     classLevel: raceLevel(race),
+    pastRuns: pastRunsFor(race),
   });
 }
