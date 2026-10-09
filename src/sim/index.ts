@@ -8,3 +8,5 @@ export type { SimulateOptions } from './engine';
 export { formatTime, marginLabel } from './result';
 export { apparentStrength, provisionalPopularity } from './rating';
 export { PARAMS } from './params';
+export { horseProfiles, formatPastRun, type HorseProfile, type PastRun } from './profile';
+export { createMeeting, raceSeed, RACES_PER_MEETING, type Meeting, type MeetingRace } from './meeting';

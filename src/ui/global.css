@@ -14,6 +14,10 @@
   --down-bg: rgba(229, 72, 77, 0.32);
   --font-body: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
   --font-data: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --hit: #3ddc84;
+  --miss: #7d97ab;
+  --plus: #3ddc84;
+  --minus: #ff7b7f;
 }
 html,
 body,
@@ -38,7 +42,8 @@ input:focus-visible {
 }
 
 .tracking {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -510,5 +515,671 @@ input:focus-visible {
   }
   .readout .value {
     text-shadow: none;
+  }
+}
+
+/* ===== ゲーム画面 ===== */
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.screen {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-block: 12px 24px;
+  padding-inline: 16px;
+  box-sizing: border-box;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 12px;
+}
+button.primary,
+button.start,
+button.wide,
+.game-nav button,
+.rescue button,
+.meeting-done button,
+.result-actions button,
+.danger-zone button,
+.race-item button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: pointer;
+}
+button.primary {
+  border-color: var(--glow);
+  color: var(--glow);
+}
+button.primary:disabled,
+button.wide:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+button.wide {
+  width: 100%;
+}
+button.start {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 12px;
+  border-color: var(--goal);
+  color: var(--goal);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+.game-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding-block: 8px;
+  padding-inline: 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.meeting-name {
+  display: flex;
+  flex-direction: column;
+}
+.meeting-name strong {
+  font-size: 16px;
+  letter-spacing: 0.06em;
+}
+.game-nav {
+  display: flex;
+  gap: 6px;
+}
+.game-nav button.on {
+  border-color: var(--glow);
+  color: var(--glow);
+}
+.game-nav button:disabled {
+  opacity: 0.4;
+}
+.wallet {
+  margin-left: auto;
+  display: flex;
+  gap: 20px;
+}
+
+/* 開催トップ */
+.meeting-top .intro h1 {
+  margin: 4px 0 6px;
+  font-size: 20px;
+}
+.meeting-top .intro p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  max-width: 60ch;
+}
+.rescue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--goal);
+  border-radius: 6px;
+}
+.race-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-width: 880px;
+}
+.race-item {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.race-item.next {
+  border-color: var(--glow);
+  box-shadow: 0 0 0 1px rgba(94, 240, 255, 0.15);
+}
+.race-item.later {
+  opacity: 0.7;
+}
+.race-no {
+  font-family: var(--font-data);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--glow);
+}
+.race-desc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.race-desc span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.top3 {
+  display: flex;
+  gap: 4px;
+}
+.chip,
+.frame {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid;
+  border-radius: 50%;
+  font-family: var(--font-data);
+  font-weight: 700;
+  font-size: 12px;
+}
+.frame {
+  border-radius: 4px;
+}
+.meeting-done {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 出馬表 */
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.card-head h1 {
+  margin: 2px 0;
+  font-size: 22px;
+}
+.odds-state {
+  font-family: var(--font-data);
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--goal);
+  border-radius: 999px;
+  color: var(--goal);
+}
+.odds-state.final {
+  border-color: var(--line);
+  color: var(--muted);
+}
+.card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 12px;
+  align-items: start;
+}
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table-wrap th,
+.table-wrap td {
+  padding: 6px 8px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+}
+.table-wrap th {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+.table-wrap .num {
+  text-align: right;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+.entry-table tbody tr {
+  cursor: pointer;
+}
+.entry-table tbody tr:hover {
+  background: rgba(94, 240, 255, 0.04);
+}
+.entry-table tr.selected {
+  background: rgba(94, 240, 255, 0.1);
+}
+.entry-table .pick {
+  min-width: 40px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--font-data);
+  font-weight: 700;
+  cursor: pointer;
+}
+.entry-table .pick[aria-pressed='true'] {
+  border-color: var(--glow);
+  background: var(--glow);
+  color: #031015;
+}
+.entry-table .name-col {
+  font-weight: 700;
+}
+.entry-table .recent {
+  font-family: var(--font-data);
+  display: flex;
+  gap: 8px;
+}
+.entry-table .recent small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.entry-table .recent .good {
+  color: var(--goal);
+}
+.entry-table .comment {
+  color: var(--muted);
+  white-space: normal;
+  min-width: 10em;
+}
+.entry-table .odds {
+  color: var(--glow);
+  font-weight: 600;
+}
+
+.bet-panel {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bet-panel h2,
+.bet-panel h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.bet-panel h3 {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+.bet-panel h3 .muted {
+  font-weight: 400;
+  font-size: 11px;
+}
+.seg-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.seg-group .seg {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.seg-group .seg.on {
+  background: var(--glow);
+  border-color: var(--glow);
+  color: #031015;
+  font-weight: 700;
+}
+.bet-panel .hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.selection {
+  font-family: var(--font-data);
+  font-size: 16px;
+}
+.stake {
+  font-size: 12px;
+  color: var(--muted);
+}
+.stake-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  gap: 4px;
+}
+.stake-row button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+}
+.stake-row input {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-data);
+  font-size: 18px;
+  text-align: right;
+  padding-inline: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.preview {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.preview div {
+  display: flex;
+  flex-direction: column;
+}
+.preview dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.preview dd {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: 14px;
+}
+.message {
+  margin: 0;
+  font-size: 12px;
+  color: var(--goal);
+}
+.slip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.slip li {
+  display: grid;
+  grid-template-columns: 3em minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.slip .bet-sel,
+.slip .bet-stake,
+.slip .bet-odds,
+.slip .bet-payout {
+  font-family: var(--font-data);
+}
+.slip .bet-odds {
+  color: var(--muted);
+  font-size: 12px;
+}
+.slip .cancel {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+.slip li.hit {
+  border-color: var(--hit);
+}
+.slip li.hit .bet-payout {
+  color: var(--hit);
+  font-weight: 700;
+}
+.slip li.miss .bet-payout {
+  color: var(--miss);
+}
+
+/* 観戦中の馬券の状況 */
+.bet-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.bet-status .label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.bet-status ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bet-status li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+}
+.bet-status li b {
+  font-family: var(--font-data);
+}
+.bet-status li.hit {
+  border-color: var(--hit);
+}
+.bet-status li.hit .verdict {
+  color: var(--hit);
+  font-weight: 700;
+}
+.bet-status li.miss .verdict {
+  color: var(--miss);
+}
+.controls .go-result {
+  margin-left: auto;
+}
+
+/* 結果 */
+.result-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 12px;
+  align-items: start;
+}
+.result-grid h2 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.result-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.payouts,
+.my-tickets {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  padding: 12px;
+}
+.payouts dl {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.payouts dl > div {
+  display: grid;
+  grid-template-columns: 3em 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.payouts dt {
+  color: var(--muted);
+  font-size: 12px;
+  padding-top: 2px;
+}
+.payouts dd {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-data);
+}
+.payouts dd.multi {
+  flex-direction: column;
+  gap: 2px;
+}
+.payouts dd.multi > span {
+  display: flex;
+  justify-content: space-between;
+}
+.payouts b {
+  color: var(--goal);
+}
+.balance {
+  margin: 8px 0 0;
+  font-family: var(--font-data);
+}
+.plus {
+  color: var(--plus);
+}
+.minus {
+  color: var(--minus);
+}
+.result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 成績 */
+.record-screen h1 {
+  margin: 4px 0 12px;
+  font-size: 20px;
+}
+.record-screen h2 {
+  font-size: 14px;
+  margin: 18px 0 8px;
+}
+.stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  max-width: 880px;
+}
+.stats div {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  padding: 10px 12px;
+}
+.stats dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.stats dd {
+  margin: 2px 0 0;
+  font-family: var(--font-data);
+  font-size: 22px;
+  color: var(--glow);
+}
+.stats dd.small {
+  font-size: 15px;
+  color: var(--fg);
+}
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  max-width: 880px;
+}
+.history li {
+  display: grid;
+  grid-template-columns: 11em minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.history .tickets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--muted);
+}
+.history .tickets .hit {
+  color: var(--hit);
+}
+.history li > span:last-child {
+  font-family: var(--font-data);
+}
+.danger-zone {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+button.danger {
+  border-color: var(--minus);
+  color: var(--minus);
+}
+
+@media (max-width: 767px) {
+  .card-body,
+  .result-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wallet {
+    margin-left: 0;
+  }
+  .history li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .history .tickets {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .screen-watch {
+    height: auto;
+    min-height: 100%;
   }
 }

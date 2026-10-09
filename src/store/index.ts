@@ -1,2 +1,1 @@
-// SPEC.md のモジュール構成を参照。後の段階で実装する。
-export {};
+export { createGameStore, useGame, placedTotal, type GameState, type Screen, type Ticket, type RaceRecord, type Totals } from './game';

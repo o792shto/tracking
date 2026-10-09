@@ -1,12 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  CONDITION_LABEL,
-  SURFACE_LABEL,
-  createRace,
-  formatTime,
-  simulateRace,
-  type RaceResult,
-} from '../sim';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CONDITION_LABEL, SURFACE_LABEL, formatTime, type RaceResult } from '../sim';
 import {
   RacePlayer,
   activeTelop,
@@ -29,13 +22,21 @@ const CAMERA_MODES: { mode: CameraMode; label: string }[] = [
 ];
 const SPEEDS: PlaybackSpeed[] = [1, 2, 4];
 
-/** 確認用ページなので固定の見本レースから始める */
-const SAMPLE_SEED = 20261009;
+interface Props {
+  /** 記録付きのレース結果（simulateRace の record: true） */
+  result: RaceResult;
+  /** 見出しの上の小さな文字（例：汐見野 3R） */
+  eyebrow: string;
+  /** 強調する馬番（自分の買った馬） */
+  highlight: ReadonlySet<number>;
+  /** 画面下に出す、現在の着順から作る表示（馬券の的中状況など） */
+  renderStatus?: (order: number[], finished: boolean) => ReactNode;
+  /** 操作ボタンの右に足すボタン（全馬ゴール後かどうかを受け取る） */
+  renderActions?: (allFinished: boolean, skip: () => void) => ReactNode;
+}
 
-/** 確認用ページ：仮の出走馬でレースを1本流し、データ表示を重ねる */
-export function TrackingDemo() {
-  const [seed, setSeed] = useState(SAMPLE_SEED);
-  const result: RaceResult = useMemo(() => simulateRace(createRace(seed)), [seed]);
+/** レース観戦：トラッキング表示＋順位表・ラップ・テロップ */
+export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderActions }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<RacePlayer | null>(null);
@@ -74,8 +75,8 @@ export function TrackingDemo() {
   }, [result]);
 
   useEffect(() => {
-    playerRef.current?.setOptions({ cameraMode: camera, followNumber: follow });
-  }, [camera, follow]);
+    playerRef.current?.setOptions({ cameraMode: camera, followNumber: follow, highlight });
+  }, [camera, follow, highlight]);
 
   const { course, entries } = result.setup;
   const samples = useMemo(
@@ -96,6 +97,7 @@ export function TrackingDemo() {
     prevOrder.current = { result, order: r.map((row) => row.index) };
     return r;
   }, [result, samples, state.time]);
+  const allFinished = state.time >= result.finish[result.finish.length - 1].time;
   const telop = finished ? null : activeTelop(result, leaderD);
   const field = samples.length && !finished ? fieldLength(samples) : null;
 
@@ -108,7 +110,7 @@ export function TrackingDemo() {
     <div className="tracking">
       <header className="race-bar">
         <div className="race-title">
-          <span className="eyebrow">確認用レース</span>
+          <span className="eyebrow">{eyebrow}</span>
           <h1>
             {SURFACE_LABEL[course.surface]}
             {course.distance}m
@@ -133,6 +135,11 @@ export function TrackingDemo() {
           </div>
         </div>
       </header>
+
+      {renderStatus?.(
+        rows.map((r) => r.number),
+        finished,
+      )}
 
       <div className="stage-row">
         <div className="stage-col">
@@ -168,9 +175,6 @@ export function TrackingDemo() {
           </button>
           <button type="button" onClick={() => playerRef.current?.replay()}>
             リプレイ
-          </button>
-          <button type="button" onClick={() => setSeed((s) => s + 1)}>
-            次のレース
           </button>
         </div>
 
@@ -214,7 +218,7 @@ export function TrackingDemo() {
           aria-label="再生位置"
           onChange={(ev) => playerRef.current?.seek(Number(ev.target.value))}
         />
-        <span className="seed">シード {seed}</span>
+        {renderActions?.(allFinished, () => playerRef.current?.seek(playerRef.current.view.duration))}
       </footer>
     </div>
   );
