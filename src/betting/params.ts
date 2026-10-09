@@ -21,11 +21,10 @@ export const BETTING = {
   poolPerRunner: { win: 8_000_000, place: 5_000_000, quinella: 12_000_000 },
   /** 1レースの購入上限（コイン） */
   raceLimit: 5000,
-  /** 初期コインと救済ボーナス（仕様では未決定。仮の値） */
+  /** 初期コイン */
   initialCoins: 10_000,
-  rescueBonus: 3000,
-  /** これ未満になったら救済ボーナスを受け取れる */
-  rescueThreshold: 100,
+  /** 所持コインが尽きたとき（購入の単位未満）に再入金できる額 */
+  redeposit: 10_000,
   /** 購入の単位 */
   unit: 100,
 };

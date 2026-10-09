@@ -263,6 +263,11 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       const piece = pieces[r.piece];
       const slope = piece.grade * 100;
       if (slope !== 0 && !finished) vTarget *= 1 - P.slopeSpeed * slope;
+      // カーブ：曲率が大きい（半径が小さい）ほど速度の上限が下がる
+      if (piece.kIn !== 0 && !finished) {
+        const radius = 1 / Math.abs(piece.kIn) + (piece.kIn > 0 ? r.x : -r.x);
+        vTarget = Math.min(vTarget, Math.sqrt(P.cornerLateralAccel * radius));
+      }
 
       // 前が壁
       r.blockedBy = -1;

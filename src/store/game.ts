@@ -48,7 +48,8 @@ interface SaveData {
   results: Record<number, number[]>;
   totals: Totals;
   history: RaceRecord[];
-  rescues: number;
+  /** 再入金した回数 */
+  redeposits: number;
 }
 
 export interface GameState extends SaveData {
@@ -66,8 +67,11 @@ export interface GameActions {
   /** レースが確定したら払い戻して次のレースへ進める */
   settle: (payouts: Payouts, finishOrder: number[], venue: string) => void;
   nextMeeting: () => void;
-  canRescue: () => boolean;
-  claimRescue: () => void;
+  /** 次の開催日へ進む。いまのレースに買った馬券があれば、その結果で精算してから進む */
+  skipDay: (current: { payouts: Payouts; finishOrder: number[]; venue: string } | null) => void;
+  /** 所持コインが尽きた（購入の単位未満で、買った馬券もない）ら再入金できる */
+  canRedeposit: () => boolean;
+  redeposit: () => void;
   resetAll: () => void;
 }
 
@@ -83,7 +87,7 @@ function initialData(): SaveData {
     results: {},
     totals: { spent: 0, returned: 0, bestPayout: 0, races: 0, hitRaces: 0 },
     history: [],
-    rescues: 0,
+    redeposits: 0,
   };
 }
 
@@ -178,14 +182,19 @@ export function createGameStore(load = true) {
 
     nextMeeting: () => set((s) => ({ meetingSeed: s.meetingSeed + 1, raceIndex: 0, results: {}, screen: 'top' })),
 
-    canRescue: () => {
-      const s = get();
-      return s.coins < BETTING.rescueThreshold && s.placed.length === 0;
+    skipDay: (current) => {
+      if (current && get().placed.length > 0) get().settle(current.payouts, current.finishOrder, current.venue);
+      get().nextMeeting();
     },
 
-    claimRescue: () => {
-      if (!get().canRescue()) return;
-      set((s) => ({ coins: s.coins + BETTING.rescueBonus, rescues: s.rescues + 1 }));
+    canRedeposit: () => {
+      const s = get();
+      return s.coins < BETTING.unit && s.placed.length === 0;
+    },
+
+    redeposit: () => {
+      if (!get().canRedeposit()) return;
+      set((s) => ({ coins: s.coins + BETTING.redeposit, redeposits: s.redeposits + 1 }));
     },
 
     resetAll: () => {
@@ -204,7 +213,7 @@ export function createGameStore(load = true) {
       results: s.results,
       totals: s.totals,
       history: s.history,
-      rescues: s.rescues,
+      redeposits: s.redeposits,
     };
     saveJSON(STORAGE_KEY, save);
   });

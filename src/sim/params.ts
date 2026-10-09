@@ -133,6 +133,13 @@ export const PARAMS = {
   spurtStart: { nige: 420, senko: 520, sashi: 640, oikomi: 800 } as Record<RunningStyle, number>,
   spurtJitter: 90,
 
+  /**
+   * カーブで出せる横向きの加速度の上限（m/s²）。カーブの速度の上限は √(この値 × 走っている半径)。
+   * 走っている半径は「カーブの半径（曲率の逆数）＋内ラチからの横位置」なので、外を回るほど速く回れるが道のりは長い。
+   * 半径150mでは上限が約20m/s で効かず、ダートの小回り（半径90〜120m）で効く
+   */
+  cornerLateralAccel: 2.8,
+
   /** 坂：勾配1%あたりの目標速度の低下と、スタミナ消費の増加（下りは逆） */
   slopeSpeed: 0.012,
   slopeBurn: 0.12,

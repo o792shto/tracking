@@ -50,13 +50,30 @@ describe('ゲームの状態', () => {
     expect(after.screen).toBe('result');
   });
 
-  it('コインが尽きたら救済ボーナスを受け取れる', () => {
+  it('コインが尽きたら10000コインを再入金できる', () => {
     const store = createGameStore(false);
+    store.setState({ coins: 150 });
+    expect(store.getState().canRedeposit()).toBe(false);
     store.setState({ coins: 50 });
-    expect(store.getState().canRescue()).toBe(true);
-    store.getState().claimRescue();
-    expect(store.getState().coins).toBe(50 + BETTING.rescueBonus);
-    expect(store.getState().canRescue()).toBe(false);
+    expect(store.getState().canRedeposit()).toBe(true);
+    store.getState().redeposit();
+    expect(store.getState().coins).toBe(50 + 10_000);
+    expect(store.getState().redeposits).toBe(1);
+    expect(store.getState().canRedeposit()).toBe(false);
+  });
+
+  it('次の開催日へスキップすると、買った馬券を精算してから進む', () => {
+    const store = createGameStore(false);
+    store.getState().buy({ type: 'win', selection: [3], stake: 1000 });
+    store.getState().skipDay({ payouts, finishOrder: [3, 7, 1], venue: '中山競馬場' });
+    const s = store.getState();
+    expect(s.coins).toBe(BETTING.initialCoins - 1000 + 2500);
+    expect(s.meetingSeed).toBe(2);
+    expect(s.raceIndex).toBe(0);
+    expect(s.placed).toEqual([]);
+    expect(s.screen).toBe('top');
+    store.getState().skipDay(null);
+    expect(store.getState().meetingSeed).toBe(3);
   });
 });
 
@@ -120,7 +137,7 @@ describe('保存', () => {
         results: { 0: [18, 17, 16] },
         totals,
         history: [],
-        rescues: 0,
+        redeposits: 0,
       }),
     );
     const s = createGameStore().getState();

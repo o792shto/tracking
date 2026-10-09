@@ -13,22 +13,34 @@ export function MeetingTop() {
   const placed = useGame((s) => s.placed);
   const go = useGame((s) => s.go);
   const nextMeeting = useGame((s) => s.nextMeeting);
-  const canRescue = useGame((s) => s.canRescue());
-  const claimRescue = useGame((s) => s.claimRescue);
+  const canRedeposit = useGame((s) => s.canRedeposit());
+  const redeposit = useGame((s) => s.redeposit);
   const settleRace = useGame((s) => s.settle);
+  const skipDay = useGame((s) => s.skipDay);
   const done = raceIndex >= RACES_PER_MEETING;
   const mainIndex = meeting.races.findIndex((r) => r.no === 11);
   const canSkip = raceIndex < mainIndex;
 
+  /** 観戦せずにレースを走らせて、払い戻しと着順を出す */
+  const runQuietly = (i: number) => {
+    const { setup } = meeting.races[i];
+    const result = simulateRace(setup, { record: false });
+    const finishOrder = result.finish.map((f) => f.number);
+    return { payouts: settle(buildMarket(setup, horseProfiles(setup)), finishOrder), finishOrder, venue: meeting.venue };
+  };
+
   /** メインレースの前まで、残りのレースを観戦せずに確定させる（買った馬券は結果どおり精算） */
   const skipToMain = () => {
     for (let i = raceIndex; i < mainIndex; i++) {
-      const { setup } = meeting.races[i];
-      const result = simulateRace(setup, { record: false });
-      const order = result.finish.map((f) => f.number);
-      settleRace(settle(buildMarket(setup, horseProfiles(setup)), order), order, meeting.venue);
+      const r = runQuietly(i);
+      settleRace(r.payouts, r.finishOrder, r.venue);
     }
     go('card');
+  };
+
+  /** この日の残りのレースを飛ばして次の開催日へ（買った馬券があれば、そのレースだけ走らせて精算） */
+  const skipToNextDay = () => {
+    skipDay(!done && placed.length > 0 ? runQuietly(raceIndex) : null);
   };
 
   return (
@@ -40,19 +52,24 @@ export function MeetingTop() {
         <p>
           レースは1Rから順に行います。出馬表で馬券を買って発走させてください。馬券を買わずに観戦だけもできます。
         </p>
-        {canSkip && (
+        {!done && (
           <div className="skip-main">
-            <button type="button" className="primary" onClick={skipToMain}>
-              メインレース（11R {meeting.races[mainIndex].name}）までスキップ
+            {canSkip && (
+              <button type="button" className="primary" onClick={skipToMain}>
+                メインレース（11R {meeting.races[mainIndex].name}）までスキップ
+              </button>
+            )}
+            <button type="button" onClick={skipToNextDay}>
+              次の開催日へスキップ
             </button>
             {placed.length > 0 && <span className="muted small">購入済みの{raceIndex + 1}Rの馬券は、結果どおりに精算します。</span>}
           </div>
         )}
-        {canRescue && (
+        {canRedeposit && (
           <div className="rescue" role="status">
-            <span>所持コインが{formatCoins(BETTING.rescueThreshold)}未満です。</span>
-            <button type="button" className="primary" onClick={claimRescue}>
-              救済ボーナス {formatCoins(BETTING.rescueBonus)}コインを受け取る
+            <span>所持コインがなくなりました。</span>
+            <button type="button" className="primary" onClick={redeposit}>
+              {formatCoins(BETTING.redeposit)}コインを再入金する
             </button>
           </div>
         )}

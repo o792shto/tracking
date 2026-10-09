@@ -8,7 +8,7 @@ export function RecordScreen() {
   const coins = useGame((s) => s.coins);
   const totals = useGame((s) => s.totals);
   const history = useGame((s) => s.history);
-  const rescues = useGame((s) => s.rescues);
+  const redeposits = useGame((s) => s.redeposits);
   const resetAll = useGame((s) => s.resetAll);
   const [confirming, setConfirming] = useState(false);
   const rate = totals.spent > 0 ? `${((totals.returned / totals.spent) * 100).toFixed(1)}%` : '—';
@@ -41,8 +41,8 @@ export function RecordScreen() {
           </dd>
         </div>
         <div>
-          <dt>救済ボーナス</dt>
-          <dd className="small">{rescues}回</dd>
+          <dt>再入金</dt>
+          <dd className="small">{redeposits}回</dd>
         </div>
       </dl>
 
