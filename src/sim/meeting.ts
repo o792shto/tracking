@@ -8,6 +8,7 @@ import {
   type RaceClass,
 } from './program';
 import type { Venue } from './gradedRaces';
+import { LAYOUT_LABEL, layoutFor } from './venues';
 import type { RaceSetup } from './types';
 
 /** 1開催日のレース数 */
@@ -26,6 +27,8 @@ export interface MeetingRace {
   grade: 'G1' | 'G2' | 'G3' | null;
   program: ProgramRace;
   setup: RaceSetup;
+  /** 内回り・外回り（芝で両方ある場のみ。なければ空） */
+  layoutLabel: string;
 }
 
 export interface Meeting {
@@ -59,6 +62,7 @@ export function createMeeting(serial: number): Meeting {
       grade,
       program,
       setup,
+      layoutLabel: LAYOUT_LABEL[layoutFor(day.venue, program.surface, program.distance)],
     };
   });
   return {

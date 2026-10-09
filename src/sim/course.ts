@@ -15,13 +15,30 @@ export interface TrackGeometry {
   radius: number;
   /** ホームストレッチ入口からゴール線までの距離（m） */
   finishOffset: number;
+  /** 追い出しを始める直線の長さ（ゴールまで、m）。省略時は finishOffset */
+  homeStretch?: number;
+  /** 坂：周回座標 start から length m の区間の勾配（高さ/距離）。なければ平坦 */
+  grades?: { start: number; length: number; grade: number }[];
 }
 
+/** 競馬場を指定しないときの標準の楕円（平坦）。参考値との比較はこのコースで行う */
 export const TRACK: TrackGeometry = {
   straight: 450,
   radius: 150,
   finishOffset: 380,
 };
+
+/** 周回座標 s での勾配（上りが正） */
+export function gradeAt(g: TrackGeometry, s: number): number {
+  if (!g.grades) return 0;
+  const lap = lapLength(g);
+  for (const seg of g.grades) {
+    let rel = s - seg.start;
+    if (rel < 0) rel += lap;
+    if (rel < seg.length) return seg.grade;
+  }
+  return 0;
+}
 
 export function curveLength(g: TrackGeometry): number {
   return Math.PI * g.radius;

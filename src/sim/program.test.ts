@@ -68,6 +68,13 @@ describe('1日の番組', () => {
     }
   });
 
+  it('牝馬限定の条件戦は1日1レース（重賞の牝馬限定は別）', () => {
+    for (const serial of [1, 20, 50, 80]) {
+      const undercard = raceDay(serial).races.filter((r) => r.no !== 11);
+      expect(undercard.filter((r) => r.fillies)).toHaveLength(1);
+    }
+  });
+
   it('98日で1年、99日目は翌年の1日目', () => {
     expect(raceDay(98)).toMatchObject({ year: 2026, dayIndex: 97 });
     expect(raceDay(99)).toMatchObject({ year: 2027, dayIndex: 0, month: 1, day: 4 });

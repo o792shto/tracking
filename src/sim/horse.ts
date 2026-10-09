@@ -123,6 +123,7 @@ export function createRace(seed: number, options: CreateRaceOptions = {}): RaceS
         [CONDITIONS[3], 0.08],
       ]),
   };
+  if (options.course?.venue) course.venue = options.course.venue;
   const runners = options.runners ?? rng.int(8, 18);
   const frames = frameNumbers(runners);
   const entries: Entry[] = [];

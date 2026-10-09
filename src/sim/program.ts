@@ -186,6 +186,8 @@ export function raceDay(serial: number): RaceDay {
   const condition: Record<Surface, TrackCondition> = { turf: CONDITIONS[wet], dirt: CONDITIONS[shift()] };
   const races: ProgramRace[] = [];
   let slotIdx = 0;
+  // 牝馬限定の条件戦は1日1レース（メインレース以外から選ぶ）
+  const filliesNo = rng.pick([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
   for (let no = 1; no <= RACES_PER_DAY; no++) {
     if (no === 11) {
       const m = mainRaceOf(main);
@@ -199,7 +201,7 @@ export function raceDay(serial: number): RaceDay {
       name: CLASS_LABEL[slot.raceClass],
       surface: slot.surface,
       age: slot.age,
-      fillies: rng.chance(0.12),
+      fillies: no === filliesNo,
       distance: rng.pick(STANDARD_DISTANCES[slot.surface]),
       runners: rng.int(...RUNNERS[slot.raceClass]),
     });
@@ -224,6 +226,7 @@ export function setupFor(day: RaceDay, race: ProgramRace): RaceSetup {
       distance: race.distance,
       direction: VENUE_DIRECTION[day.venue],
       condition: day.condition[race.surface],
+      venue: day.venue,
     },
     runners: race.runners,
     classLevel: raceLevel(race),

@@ -27,3 +27,5 @@ export {
   type RaceDay,
 } from './program';
 export { GRADED_RACES_2026, type GradedRace, type Venue, type Grade, type AgeCondition } from './gradedRaces';
+export { courseTrack, trackFor, layoutFor, COURSES, LAYOUT_LABEL, type Layout, type CourseSpec } from './venues';
+export { gradeAt } from './course';

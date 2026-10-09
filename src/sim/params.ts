@@ -114,15 +114,28 @@ export const PARAMS = {
   /** 仕掛けてから直線に入るまでの速度の上限（巡航速度に対する上乗せ）。直線で一気に追い出す。
    *  後ろの脚質ほど3〜4コーナーで外からまくって進出する */
   spurtCurveCap: { nige: 0.0, senko: 0.01, sashi: 0.035, oikomi: 0.05 } as Record<RunningStyle, number>,
+  /** 直線の長さによる末脚の補正：直線が referenceStretch より100m長いごとに、最高速が この値% 変わる */
+  referenceStretch: 380,
+  stretchBias: { nige: -0.015, senko: -0.008, sashi: 0.01, oikomi: 0.02 } as Record<RunningStyle, number>,
+  /** 直線で追い出しを始める残り距離（脚質ごと、±kickJitter） */
+  kickAt: { nige: 420, senko: 440, sashi: 460, oikomi: 480 } as Record<RunningStyle, number>,
+  kickJitter: 40,
+  /** コーナーの半径による、3〜4コーナーで押し上げられる速さの倍率：(半径 / referenceRadius) ^ curveEaseExponent */
+  referenceRadius: 150,
+  curveEaseExponent: 2,
   /** 追い出してからの最高速の落ち方（1秒あたりの割合）。ダートは脚が上がりやすい */
-  kickFade: { turf: 0.003, dirt: 0.0045 } as Record<Surface, number>,
+  kickFade: { turf: 0.0042, dirt: 0.0045 } as Record<Surface, number>,
   /** 失速の距離による倍率：(1600 / 距離) ^ この値。短距離ほど前半で脚を使っているので止まりやすい */
-  kickFadeDistanceExp: 1.2,
+  kickFadeDistanceExp: 0.8,
   /** 追い出してからの加速度（m/s²） */
   spurtAccel: 1.6,
   /** 仕掛け開始（残り距離, m）の平均。±spurtJitter */
   spurtStart: { nige: 420, senko: 520, sashi: 640, oikomi: 800 } as Record<RunningStyle, number>,
   spurtJitter: 90,
+
+  /** 坂：勾配1%あたりの目標速度の低下と、スタミナ消費の増加（下りは逆） */
+  slopeSpeed: 0.012,
+  slopeBurn: 0.12,
 
   /** 前の馬との距離がこれ未満で同じ進路なら「前が壁」 */
   blockDistance: 2.4,

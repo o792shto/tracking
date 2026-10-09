@@ -1,5 +1,5 @@
-import { BETTING } from '../betting';
-import { CONDITION_LABEL, RACES_PER_MEETING, SURFACE_LABEL } from '../sim';
+import { BETTING, buildMarket, settle } from '../betting';
+import { CONDITION_LABEL, RACES_PER_MEETING, SURFACE_LABEL, horseProfiles, simulateRace } from '../sim';
 import { useGame } from '../store';
 import { frameColor } from '../render';
 import { GradeBadge, formatCoins } from './GameHeader';
@@ -15,7 +15,21 @@ export function MeetingTop() {
   const nextMeeting = useGame((s) => s.nextMeeting);
   const canRescue = useGame((s) => s.canRescue());
   const claimRescue = useGame((s) => s.claimRescue);
+  const settleRace = useGame((s) => s.settle);
   const done = raceIndex >= RACES_PER_MEETING;
+  const mainIndex = meeting.races.findIndex((r) => r.no === 11);
+  const canSkip = raceIndex < mainIndex;
+
+  /** メインレースの前まで、残りのレースを観戦せずに確定させる（買った馬券は結果どおり精算） */
+  const skipToMain = () => {
+    for (let i = raceIndex; i < mainIndex; i++) {
+      const { setup } = meeting.races[i];
+      const result = simulateRace(setup, { record: false });
+      const order = result.finish.map((f) => f.number);
+      settleRace(settle(buildMarket(setup, horseProfiles(setup)), order), order, meeting.venue);
+    }
+    go('card');
+  };
 
   return (
     <main className="screen meeting-top">
@@ -26,6 +40,14 @@ export function MeetingTop() {
         <p>
           レースは1Rから順に行います。出馬表で馬券を買って発走させてください。馬券を買わずに観戦だけもできます。
         </p>
+        {canSkip && (
+          <div className="skip-main">
+            <button type="button" className="primary" onClick={skipToMain}>
+              メインレース（11R {meeting.races[mainIndex].name}）までスキップ
+            </button>
+            {placed.length > 0 && <span className="muted small">購入済みの{raceIndex + 1}Rの馬券は、結果どおりに精算します。</span>}
+          </div>
+        )}
         {canRescue && (
           <div className="rescue" role="status">
             <span>所持コインが{formatCoins(BETTING.rescueThreshold)}未満です。</span>
@@ -52,7 +74,7 @@ export function MeetingTop() {
                 <span>
                   {race.className && `${race.className}・`}
                   {SURFACE_LABEL[course.surface]}
-                  {course.distance}m・{course.direction === 'right' ? '右' : '左'}・{CONDITION_LABEL[course.condition]}・
+                  {course.distance}m{race.layoutLabel && `（${race.layoutLabel}）`}・{course.direction === 'right' ? '右' : '左'}・{CONDITION_LABEL[course.condition]}・
                   {entries.length}頭
                 </span>
               </span>

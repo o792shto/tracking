@@ -37,6 +37,8 @@ export interface Course {
   surface: Surface;
   direction: Direction;
   condition: TrackCondition;
+  /** 競馬場（指定がなければ標準の平坦な楕円） */
+  venue?: '東京' | '中山' | '京都' | '阪神';
 }
 
 /** 能力値はすべて 0〜100 */

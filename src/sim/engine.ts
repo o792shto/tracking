@@ -1,5 +1,6 @@
 import { effectiveAbility, type EffectiveAbility } from './ability';
-import { TRACK, isCurve, lapPosition } from './course';
+import { gradeAt, isCurve, lapPosition } from './course';
+import { courseTrack } from './venues';
 import { PARAMS } from './params';
 import { finishRecords, judgePace, lapMarks } from './result';
 import { Rng } from './rng';
@@ -32,8 +33,12 @@ interface Runner {
   tolerance: number;
   spurtAt: number;
   spurting: boolean;
+  /** 直線の長さによる末脚の倍率 */
+  stretchBias: number;
   /** 直線で追い出した時刻 */
   kickFrom: number;
+  /** 追い出しを始める残り距離（直線がこれより短ければ直線に入ってすぐ） */
+  kickAt: number;
   /** 序盤の先行争いで巡航速度に上乗せする割合 */
   dash: number;
   /** 仕掛けでの騎手の見積もり（1 より大きいと脚を使いすぎる） */
@@ -53,7 +58,9 @@ interface Runner {
 export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): RaceResult {
   // ホットループ内でモジュールの名前空間を毎回たどらないよう、ローカルに束縛しておく
   const P = PARAMS;
-  const track = TRACK;
+  const track = courseTrack(setup.course);
+  const homeStretch = track.homeStretch ?? track.finishOffset;
+  const curveEase = Math.pow(track.radius / P.referenceRadius, P.curveEaseExponent);
   const curveAt = isCurve;
   const lapPos = lapPosition;
   const { course } = setup;
@@ -102,6 +109,9 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       ),
       spurting: false,
       kickFrom: Infinity,
+      // 直線が長いほど後ろの脚質が伸び、短いほど前の脚質が粘る
+      stretchBias: 1 + (P.stretchBias[style] * (homeStretch - P.referenceStretch)) / 100,
+      kickAt: P.kickAt[style] + rng.range(-P.kickJitter, P.kickJitter),
       dash: P.earlyDash[style] * dashScale,
       jockeyBias: 1 + rng.normal(0, P.jockeyJitter),
       keenFrom,
@@ -207,11 +217,15 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
         // 直線に向くまでは手綱を抑えて進出し、追い出しは直線に入ってから。
         // 追い出した後は時間とともに脚が上がって最高速が落ちる（最後の1Fは少し遅くなる）
         let cap: number;
-        if (remaining > track.finishOffset) {
+        if (remaining > homeStretch) {
+          // 小回りのコーナーでは外から押し上げにくい
+          cap = r.ab.cruise * (1 + P.spurtCurveCap[r.style] * curveEase);
+        } else if (remaining > r.kickAt) {
+          // 長い直線：追い出しを待つ間も、後ろの馬は外から押し上げていく
           cap = r.ab.cruise * (1 + P.spurtCurveCap[r.style]);
         } else {
           if (r.kickFrom === Infinity) r.kickFrom = tNext;
-          cap = r.ab.top * (1 - kickFade * (tNext - r.kickFrom));
+          cap = r.ab.top * r.stretchBias * (1 - kickFade * (tNext - r.kickFrom));
         }
         vTarget = clamp(
           r.ab.cruise * sustainable * r.jockeyBias,
@@ -240,6 +254,10 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
         const fade = clamp(1 - (r.d - P.earlyDashDistance) / P.earlyDashFade, 0, 1);
         vTarget = Math.max(vTarget, r.ab.cruise * (1 + r.dash * fade));
       }
+
+      // 坂：上りでは脚が鈍り、下りでは少し速くなる（勾配は％で扱う）
+      const slope = gradeAt(track, lapPos(track, D, r.d)) * 100;
+      if (slope !== 0 && !finished) vTarget *= 1 - P.slopeSpeed * slope;
 
       // 前が壁
       r.blockedBy = -1;
@@ -308,7 +326,9 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
           // 仕掛け前に自分の巡航速度を超えて走ると余計に消耗する（ハイペースで前が苦しくなる）
           (!r.spurting && ratio > 1 ? 1 + P.overPacePenalty * (ratio - 1) : 1) *
           (keen ? P.keenBurn : 1) *
-          (drafting ? 1 - P.draftRelief : 1);
+          (drafting ? 1 - P.draftRelief : 1) *
+          // 上り坂はスタミナを余計に使い、下り坂は少し楽
+          Math.max(0.7, 1 + P.slopeBurn * slope);
       }
 
       // 通過時刻（補間）

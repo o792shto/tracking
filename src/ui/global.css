@@ -626,6 +626,13 @@ h3 {
   color: var(--muted);
   max-width: 60ch;
 }
+.skip-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
 .rescue {
   display: flex;
   flex-wrap: wrap;

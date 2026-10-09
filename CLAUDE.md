@@ -32,6 +32,7 @@
 
 - 年間の重賞98レースは `src/sim/gradedRaces.ts`（元資料は `docs/reference/graded-races-2026.md`）
 - 1日12Rの番組・重賞の置き換えルール・クラスごとの能力水準は `src/sim/program.ts`
+- 競馬場のコース（1周・直線・坂・内外回り）は `src/sim/venues.ts`（元資料は `docs/reference/course-data.md`。コーナー半径と坂の形は推定）
 
 ## 時計・ラップの基準
 

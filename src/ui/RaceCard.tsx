@@ -109,6 +109,7 @@ export function RaceCard() {
             <GradeBadge grade={race.grade} />
             {race.name}　{SURFACE_LABEL[course.surface]}
             {course.distance}m
+            {race.layoutLabel && <small className="layout">（{race.layoutLabel}）</small>}
           </h1>
           <span className="race-meta">
             {race.className && `${race.className}・`}

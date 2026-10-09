@@ -1,10 +1,11 @@
 import {
-  TRACK,
+  courseTrack,
   lapLength,
   lapPosition,
   pastFourthCorner,
   trackPoint,
   type RaceResult,
+  type TrackGeometry,
 } from '../sim';
 import {
   approach,
@@ -54,6 +55,7 @@ export class TrackView {
   private dpr = 1;
   private trackOuter: { x: number; y: number }[] = [];
   private trackInner: { x: number; y: number }[] = [];
+  private track: TrackGeometry = courseTrack({ surface: 'turf', distance: 1600 });
   private overviewRect: Rect = { minX: 0, minY: 0, maxX: 1, maxY: 1 };
 
   constructor(
@@ -68,9 +70,8 @@ export class TrackView {
   }
 
   setResult(result: RaceResult) {
-    const directionChanged = result.setup.course.direction !== this.result.setup.course.direction;
     this.result = result;
-    if (directionChanged) this.buildTrack();
+    this.buildTrack();
     this.view = null;
   }
 
@@ -89,19 +90,20 @@ export class TrackView {
 
   private buildTrack() {
     const dir = this.result.setup.course.direction;
-    const lap = lapLength(TRACK);
+    this.track = courseTrack(this.result.setup.course);
+    const lap = lapLength(this.track);
     this.trackInner = [];
     this.trackOuter = [];
     for (let s = 0; s < lap; s += 4) {
-      this.trackInner.push(trackPoint(TRACK, dir, s, 0));
-      this.trackOuter.push(trackPoint(TRACK, dir, s, TRACK_WIDTH));
+      this.trackInner.push(trackPoint(this.track, dir, s, 0));
+      this.trackOuter.push(trackPoint(this.track, dir, s, TRACK_WIDTH));
     }
     this.overviewRect = boundsOf(this.trackOuter, 18);
   }
 
   private point(d: number, lateral: number) {
     const { course } = this.result.setup;
-    return trackPoint(TRACK, course.direction, lapPosition(TRACK, course.distance, d), lateral);
+    return trackPoint(this.track, course.direction, lapPosition(this.track, course.distance, d), lateral);
   }
 
   /** 時刻 t の画面を描く。frameDt は前回の描画からの実時間（カメラの追従に使う） */
@@ -158,7 +160,7 @@ export class TrackView {
           near.push(this.point(D + 20, 0), this.point(D - 30, TRACK_WIDTH * 0.6));
           return fitRect(boundsOf(near, 8), w, h, 0, 9);
         }
-        if (D - leader.d <= TRACK.finishOffset) {
+        if (D - leader.d <= this.track.finishOffset) {
           // 直線：ゴール線を画面に入れて固定気味にし、馬がゴールへ迫っていく動きを見せる。
           // 先頭がゴールに近づくほど枠が縮んで寄っていく
           const front = order
@@ -172,7 +174,7 @@ export class TrackView {
           pts.push(this.point(ahead, 0), this.point(ahead, TRACK_WIDTH * 0.5), this.point(rear - 20, 0));
           return fitRect(boundsOf(pts, 6), w, h, 0, 9);
         }
-        if (pastFourthCorner(TRACK, course, leader.d)) {
+        if (pastFourthCorner(this.track, course, leader.d)) {
           // 4コーナー以降：先頭〜中団に寄ってズーム
           const front = order.slice(0, Math.max(5, Math.ceil(order.length / 2)));
           const pts = front

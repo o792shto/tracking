@@ -43,9 +43,9 @@ export function quinellaProbability(p: number[], i: number, j: number): number {
   return (p[i] * p[j]) / (1 - p[i]) + (p[j] * p[i]) / (1 - p[j]);
 }
 
-/** オッズは0.1倍単位に切り捨て、最低1.0倍（元返し） */
+/** オッズは0.1倍単位に切り捨て、最低1.0倍（元返し）、最高999.9倍 */
 export function roundOdds(x: number): number {
-  return Math.max(1, Math.floor(x * 10 + 1e-9) / 10);
+  return Math.min(BETTING.maxOdds, Math.max(1, Math.floor(x * 10 + 1e-9) / 10));
 }
 
 /** 前走の着順による人気の上乗せ */
@@ -56,9 +56,14 @@ function formBoost(profile: HorseProfile | undefined): number {
   return 1 + BETTING.recentFormBias * bonus;
 }
 
-function normalize(weights: number[], total: number): number[] {
+/**
+ * 票の重みを総額 total に配分する。どの馬にも一定の票（記念買い・穴狙い）が入るよう、
+ * 全体の floorShare を頭数で均等に配る。これで人気薄のオッズが極端に高くならない
+ */
+function normalize(weights: number[], total: number, floorShare = BETTING.longshotFloor): number[] {
   const z = weights.reduce((a, b) => a + b, 0);
-  return weights.map((w) => (w / z) * total);
+  const n = weights.length;
+  return weights.map((w) => ((1 - floorShare) * (w / z) + floorShare / n) * total);
 }
 
 /**
