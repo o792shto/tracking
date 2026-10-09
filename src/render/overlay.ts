@@ -135,13 +135,29 @@ export function fieldLength(samples: HorseSample[]): number {
 
 /** 残り600m/400m/200m のテロップ。先頭が通過してからこの距離の間だけ出す */
 const TELOP_SPAN = 45;
-export const TELOP_MARKS = [600, 400, 200] as const;
+export const TELOP_MARKS = [1000, 600, 400, 200] as const;
+/** 残り1000mのテロップはこの距離以上のレースだけ（短いとスタート直後になる） */
+const TELOP_1000_MIN_DISTANCE = 1600;
 
 export function activeTelop(result: RaceResult, leaderD: number): (typeof TELOP_MARKS)[number] | null {
   const D = result.setup.course.distance;
   for (const mark of TELOP_MARKS) {
+    if (mark === 1000 && D < TELOP_1000_MIN_DISTANCE) continue;
     const at = D - mark;
     if (leaderD >= at && leaderD < at + TELOP_SPAN) return mark;
   }
   return null;
+}
+
+/** 写真判定にする着差と、判定にかける時間（レース内の秒） */
+const PHOTO_LABELS = new Set(['同着', 'ハナ', 'アタマ']);
+export const PHOTO_SECONDS = 2.6;
+
+/** 写真判定：1・2着（3着も僅差なら含む）の着差がごく小さいとき、判定する馬番と確定する時刻 */
+export function photoFinish(result: RaceResult): { numbers: Set<number>; revealAt: number } | null {
+  const f = result.finish;
+  if (f.length < 2 || !PHOTO_LABELS.has(f[1].marginLabel)) return null;
+  const numbers = new Set([f[0].number, f[1].number]);
+  if (f[2] && PHOTO_LABELS.has(f[2].marginLabel)) numbers.add(f[2].number);
+  return { numbers, revealAt: f[numbers.size - 1].time + PHOTO_SECONDS };
 }

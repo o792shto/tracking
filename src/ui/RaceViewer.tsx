@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CONDITION_LABEL, SURFACE_LABEL, formatTime, type RaceResult } from '../sim';
+import { CONDITION_LABEL, SURFACE_LABEL, formatTime, racePath, type RaceResult } from '../sim';
 import {
   RacePlayer,
   activeTelop,
+  buildCommentary,
+  currentComments,
+  leaderChanges,
   fieldLength,
   frameColor,
+  photoFinish,
   runningOrder,
   sampleAt,
   standings,
@@ -15,7 +19,7 @@ import {
 } from '../render';
 import { useSettings } from '../store';
 import { LapChart } from './LapChart';
-import { sfx } from './sound';
+import { sfx, speak, stopSpeaking } from './sound';
 import { Standings } from './Standings';
 import { useLayoutMode } from './useLayout';
 
@@ -28,20 +32,22 @@ const CAMERA_MODES: { mode: CameraMode; label: string }[] = [
 const SPEEDS: PlaybackSpeed[] = [1, 2, 4];
 /** ゲートのカウントダウン（秒） */
 const COUNTDOWN = 3;
-/** 写真判定にする着差と、判定にかける時間（レース内の秒） */
-const PHOTO_LABELS = new Set(['同着', 'ハナ', 'アタマ']);
-const PHOTO_SECONDS = 2.6;
 /** 1着のテロップを出している時間（秒） */
 const WINNER_TELOP_SECONDS = 4;
 /** スマホの順位表で常に出す上位の頭数 */
 const COMPACT_TOP = 5;
 
-type Tab = 'standings' | 'laps' | 'bets';
+type Tab = 'standings' | 'live' | 'laps' | 'bets';
 const TABS: { tab: Tab; label: string }[] = [
   { tab: 'standings', label: '順位' },
+  { tab: 'live', label: '実況' },
   { tab: 'laps', label: 'ラップ' },
   { tab: 'bets', label: '馬券' },
 ];
+/** 先頭交代の表示を出している時間（秒） */
+const LEAD_CHANGE_SECONDS = 2.5;
+/** 「4コーナーまでスキップ」で飛ぶ先：4コーナーの入口か、直線の手前この距離の遠い方 */
+const FOURTH_CORNER_BEFORE_STRAIGHT = 250;
 
 interface Props {
   /** 記録付きのレース結果（simulateRace の record: true） */
@@ -57,19 +63,13 @@ interface Props {
   renderStatus?: (order: number[], finished: boolean, variant: 'bar' | 'full', judging: boolean) => ReactNode;
   /** 操作ボタンの右に足すボタン（全馬ゴールして着順が確定したかどうかを受け取る） */
   renderActions?: (allFinished: boolean, skip: () => void) => ReactNode;
+  /** 単勝人気（馬番−1 の順）。実況で使う */
+  popularity?: readonly number[];
 }
 
-/** 写真判定：1・2着（同着や3着も僅差なら含む）の着差がごく小さいとき */
-function photoFinish(result: RaceResult) {
-  const f = result.finish;
-  if (f.length < 2 || !PHOTO_LABELS.has(f[1].marginLabel)) return null;
-  const numbers = new Set([f[0].number, f[1].number]);
-  if (f[2] && PHOTO_LABELS.has(f[2].marginLabel)) numbers.add(f[2].number);
-  return { numbers, revealAt: f[numbers.size - 1].time + PHOTO_SECONDS };
-}
 
 /** レース観戦：トラッキング表示＋順位表・ラップ・テロップ */
-export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderActions }: Props) {
+export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderActions, popularity }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<RacePlayer | null>(null);
@@ -87,6 +87,8 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
   const [showAll, setShowAll] = useState(false);
   const mode = useLayoutMode();
   const lite = useSettings((s) => s.lite);
+  const showCommentary = useSettings((s) => s.commentary);
+  const voice = useSettings((s) => s.voice);
 
   // プレイヤーの生成。レイアウトが変わる（スマホを横にするなど）とコース図の要素が作り直されるので、
   // プレイヤーも作り直して、再生位置・倍速・再生中かどうかを引き継ぐ
@@ -183,6 +185,42 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
   const field = samples.length && !finished ? fieldLength(samples) : null;
   const counting = state.countdown > 0;
 
+  // 実況
+  const comments = useMemo(() => buildCommentary(result, { popularity, mine: highlight }), [result, popularity, highlight]);
+  const caption = counting ? [] : currentComments(comments, state.time, 2);
+  const latest = caption[caption.length - 1];
+  const spoken = useRef<number>(-1);
+  useEffect(() => {
+    if (!latest || latest.time === spoken.current) return;
+    const fresh = state.time - latest.time < 1;
+    spoken.current = latest.time;
+    // 読み上げは1倍速で再生中、新しく出た行だけ（シークで飛んだ先の行は読まない）
+    if (voice && state.playing && state.speed === 1 && fresh) speak(latest.text);
+  }, [latest, voice, state.playing, state.speed, state.time]);
+  useEffect(() => () => stopSpeaking(), []);
+
+  // 先頭交代
+  const changes = useMemo(() => leaderChanges(result), [result]);
+  const change = !finished ? changes.find((c) => state.time >= c.time && state.time < c.time + LEAD_CHANGE_SECONDS) : undefined;
+
+  // 4コーナーまでスキップ
+  const fourthCornerTime = useMemo(() => {
+    const path = racePath(result.setup.course);
+    const target = Math.max(path.fourthCornerStart, result.setup.course.distance - path.homeStretch - FOURTH_CORNER_BEFORE_STRAIGHT);
+    const log = result.log;
+    if (!log) return null;
+    for (let t = 0; t < result.finish[0].time; t += 0.25) {
+      const s = sampleAt(log, t);
+      if (Math.max(...s.map((h) => h.d)) >= target) return t;
+    }
+    return null;
+  }, [result]);
+  const canSkipToCorner = fourthCornerTime !== null && state.time < fourthCornerTime - 1;
+  const skipToCorner = () => fourthCornerTime !== null && playerRef.current?.seek(fourthCornerTime);
+
+  // 自分の馬の位置（順位と先頭からの差）
+  const mineRows = rows.filter((r) => highlight.has(r.number)).slice(0, 3);
+
   // 効果音：カウントダウン・ゲート・残り600/400/200m・ゴール・写真判定・確定
   const cue = useRef({ count: Math.ceil(state.countdown), telop: telop as number | null, finished, photoPending, confirmed: false });
   useEffect(() => {
@@ -266,6 +304,48 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
         </div>
       )}
       {state.slow && <div className="slow-badge">スロー</div>}
+      {change && (
+        <div className="lead-change" role="status">
+          <span>先頭交代</span>
+          <b>
+            {change.from}→{change.to}
+          </b>
+        </div>
+      )}
+      {mineRows.length > 0 && !counting && (
+        <ul className="mine-badge" aria-label="自分の馬の位置">
+          {mineRows.map((r) => {
+            const c = frameColor(entries[r.index].frame);
+            const hidden = masked?.has(r.number);
+            return (
+              <li key={r.number}>
+                <span className="mine-num" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
+                  {r.number}
+                </span>
+                {hidden ? (
+                  <span>判定中</span>
+                ) : r.finished ? (
+                  <b>{r.rank}着</b>
+                ) : (
+                  <>
+                    <b>{r.rank}番手</b>
+                    <span>{r.rank === 1 ? '先頭' : `先頭から${r.behindLengths.toFixed(1)}馬身`}</span>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {showCommentary && caption.length > 0 && (
+        <div className="caption" aria-live="polite">
+          {caption.map((line, i) => (
+            <p key={line.time} className={`${i === caption.length - 1 ? 'now' : 'prev'} ${line.kind}`}>
+              {line.text}
+            </p>
+          ))}
+        </div>
+      )}
       {photoPending && (
         <div className="photo" role="status">
           <span className="photo-flash" />
@@ -353,6 +433,19 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
             )}
           </>
         )}
+        {tab === 'live' && (
+          <ol className="live-log" aria-label="実況">
+            {comments
+              .filter((l) => l.time <= state.time && !counting)
+              .reverse()
+              .map((l) => (
+                <li key={l.time} className={l.kind}>
+                  <span className="live-time">{formatTime(l.time)}</span>
+                  <span>{l.text}</span>
+                </li>
+              ))}
+          </ol>
+        )}
         {tab === 'laps' && <LapChart result={result} time={state.time} />}
         {tab === 'bets' && (statusFull || <p className="muted empty">このレースは馬券を買っていません。</p>)}
       </div>
@@ -384,9 +477,15 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
       <button type="button" onClick={cycleCamera} aria-label={`カメラ ${CAMERA_MODES.find((c) => c.mode === camera)!.label}（押すと切り替え）`}>
         <small>カメラ</small> {CAMERA_MODES.find((c) => c.mode === camera)!.label}
       </button>
-      <button type="button" onClick={() => playerRef.current?.replay()}>
-        リプレイ
-      </button>
+      {canSkipToCorner ? (
+        <button type="button" onClick={skipToCorner}>
+          4角まで
+        </button>
+      ) : (
+        <button type="button" onClick={() => playerRef.current?.replay()}>
+          リプレイ
+        </button>
+      )}
       {renderActions?.(allFinished, skip)}
     </div>
   );
@@ -484,6 +583,11 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
         </div>
 
         {seek}
+        {canSkipToCorner && (
+          <button type="button" onClick={skipToCorner}>
+            4コーナーまでスキップ
+          </button>
+        )}
         {renderActions?.(allFinished, skip)}
       </footer>
     </div>

@@ -10,7 +10,10 @@ export {
   paceReadout,
   fieldLength,
   activeTelop,
+  photoFinish,
+  PHOTO_SECONDS,
   TELOP_MARKS,
   type StandingRow,
   type PaceReadout,
 } from './overlay';
+export { buildCommentary, currentComments, leaderChanges, type CommentLine, type CommentKind } from './commentary';

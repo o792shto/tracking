@@ -1504,7 +1504,7 @@ button.danger {
 }
 .slow-badge {
   position: absolute;
-  top: 10px;
+  top: 46px;
   right: 10px;
   padding: 3px 10px;
   border: 1px solid var(--glow);
@@ -1569,7 +1569,7 @@ button.danger {
 .winner-telop {
   position: absolute;
   left: 50%;
-  bottom: 14px;
+  top: 14px;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
@@ -1951,6 +1951,159 @@ button.danger {
   .win-banner,
   .win-banner.big .win-title,
   .sparkles {
+    animation: none;
+  }
+}
+
+/* ===== 実況の字幕・先頭交代・自分の馬 ===== */
+.caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 12px 8px;
+  background: linear-gradient(transparent, rgba(5, 12, 19, 0.92) 40%);
+  pointer-events: none;
+}
+.caption p {
+  margin: 0;
+  line-height: 1.45;
+  text-shadow: 0 1px 2px #000;
+}
+.caption .prev {
+  font-size: 12px;
+  color: var(--muted);
+}
+.caption .now {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg);
+  animation: caption-in 0.3s ease-out;
+}
+.caption .now.finish,
+.caption .now.result {
+  color: var(--goal);
+}
+.caption .now.trouble {
+  color: #ffb4b6;
+}
+.caption .now.mine {
+  color: var(--glow);
+}
+@keyframes caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.lead-change {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 14px;
+  border: 1px solid var(--glow);
+  border-radius: 999px;
+  background: rgba(5, 12, 19, 0.85);
+  color: var(--glow);
+  font-size: 13px;
+  pointer-events: none;
+  animation: caption-in 0.3s ease-out;
+}
+.lead-change b {
+  font-family: var(--font-data);
+  font-size: 16px;
+}
+.mine-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+.mine-badge li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 4px;
+  border: 1px solid var(--glow);
+  border-radius: 999px;
+  background: rgba(5, 12, 19, 0.85);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.mine-badge b {
+  color: var(--glow);
+  font-family: var(--font-data);
+  font-size: 14px;
+}
+.mine-badge span:last-child {
+  color: var(--muted);
+}
+.mine-num {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid;
+  border-radius: 50%;
+  font-family: var(--font-data);
+  font-weight: 700;
+  font-size: 12px;
+}
+.live-log {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.tracking.short .live-log {
+  max-height: none;
+}
+.live-log li {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.live-log li:first-child {
+  color: var(--fg);
+  font-weight: 700;
+}
+.live-log .live-time {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--muted);
+}
+.live-log .mine {
+  color: var(--glow);
+}
+.live-log .finish,
+.live-log .result {
+  color: var(--goal);
+}
+@media (max-width: 767px) {
+  .caption .now {
+    font-size: 14px;
+  }
+  .caption {
+    padding: 14px 8px 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .caption .now,
+  .lead-change {
     animation: none;
   }
 }

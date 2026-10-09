@@ -10,27 +10,34 @@ export interface Settings {
   lite: boolean;
   /** 効果音（デフォルトはオフ） */
   sound: boolean;
+  /** 実況の字幕（デフォルトはオン） */
+  commentary: boolean;
+  /** 実況の読み上げ（ブラウザの音声合成。デフォルトはオフ） */
+  voice: boolean;
 }
 
 export interface SettingsActions {
   setLite: (on: boolean) => void;
   setSound: (on: boolean) => void;
+  setCommentary: (on: boolean) => void;
+  setVoice: (on: boolean) => void;
 }
 
-const DEFAULTS: Settings = { lite: false, sound: false };
+const DEFAULTS: Settings = { lite: false, sound: false, commentary: true, voice: false };
+const KEYS = Object.keys(DEFAULTS) as (keyof Settings)[];
 
 export function createSettingsStore(load = true) {
   const saved = load ? loadJSON<Partial<Settings>>(SETTINGS_KEY) : null;
-  const data: Settings = {
-    lite: typeof saved?.lite === 'boolean' ? saved.lite : DEFAULTS.lite,
-    sound: typeof saved?.sound === 'boolean' ? saved.sound : DEFAULTS.sound,
-  };
+  const data = { ...DEFAULTS };
+  for (const key of KEYS) if (typeof saved?.[key] === 'boolean') data[key] = saved[key]!;
   const store = createStore<Settings & SettingsActions>()((set) => ({
     ...data,
     setLite: (lite) => set({ lite }),
     setSound: (sound) => set({ sound }),
+    setCommentary: (commentary) => set({ commentary }),
+    setVoice: (voice) => set({ voice }),
   }));
-  store.subscribe((s) => saveJSON(SETTINGS_KEY, { lite: s.lite, sound: s.sound }));
+  store.subscribe((s) => saveJSON(SETTINGS_KEY, Object.fromEntries(KEYS.map((k) => [k, s[k]]))));
   return store;
 }
 

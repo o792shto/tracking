@@ -22,6 +22,7 @@ export function Watch() {
       result={result}
       eyebrow={`${meeting.venue} ${race.no}R ${race.grade ? `${race.name}（${race.grade}）` : race.name}`}
       highlight={highlight}
+      popularity={market.boards[market.boards.length - 1].popularity}
       renderStatus={(order, finished, variant, judging) => {
         if (placed.length === 0) return null;
         const hits = placed.map((bet) => isHit(bet, order, runners));

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DAYS_PER_YEAR } from '../sim';
 import { getSettingsStore, useGame, useSettings } from '../store';
-import { sfx, unlockAudio } from './sound';
+import { sfx, speak, unlockAudio } from './sound';
 import { useMeeting } from './useRace';
 
 /** 設定：軽量モードと効果音 */
@@ -9,6 +9,9 @@ function SettingsMenu() {
   const [open, setOpen] = useState(false);
   const lite = useSettings((s) => s.lite);
   const sound = useSettings((s) => s.sound);
+  const commentary = useSettings((s) => s.commentary);
+  const voice = useSettings((s) => s.voice);
+  const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -53,6 +56,33 @@ function SettingsMenu() {
               <small>カウントダウン・ゴール・払い戻しなど</small>
             </span>
           </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={commentary}
+              onChange={(ev) => getSettingsStore().getState().setCommentary(ev.target.checked)}
+            />
+            <span>
+              実況の字幕
+              <small>コース図の下に実況を出します</small>
+            </span>
+          </label>
+          {canSpeak && (
+            <label>
+              <input
+                type="checkbox"
+                checked={voice}
+                onChange={(ev) => {
+                  getSettingsStore().getState().setVoice(ev.target.checked);
+                  if (ev.target.checked) speak('実況の読み上げをオンにしました');
+                }}
+              />
+              <span>
+                実況の読み上げ
+                <small>端末の音声で読み上げます（1倍速のときだけ）</small>
+              </span>
+            </label>
+          )}
         </div>
       )}
     </div>
