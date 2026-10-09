@@ -1,4 +1,15 @@
+import { generateHorseName } from './names';
 import { Rng } from './rng';
+
+/** 文字列から乱数のシードを作る（FNV-1a） */
+function stringSeed(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
 import {
   CONDITIONS,
   DISTANCES_BY_SURFACE,
@@ -9,31 +20,6 @@ import {
   type RaceSetup,
   type RunningStyle,
 } from './types';
-
-const SYLLABLES = [
-  'ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク', 'ケ', 'コ', 'サ', 'シ', 'ス', 'セ', 'ソ',
-  'タ', 'チ', 'ツ', 'テ', 'ト', 'ナ', 'ニ', 'ヌ', 'ネ', 'ノ', 'ハ', 'ヒ', 'フ', 'ヘ', 'ホ',
-  'マ', 'ミ', 'ム', 'メ', 'モ', 'ヤ', 'ユ', 'ヨ', 'ラ', 'リ', 'ル', 'レ', 'ロ', 'ワ',
-  'ガ', 'ギ', 'グ', 'ゲ', 'ゴ', 'ザ', 'ジ', 'ズ', 'ゼ', 'ゾ', 'ダ', 'デ', 'ド',
-  'バ', 'ビ', 'ブ', 'ベ', 'ボ', 'パ', 'ピ', 'プ', 'ペ', 'ポ',
-  'キャ', 'シュ', 'ショ', 'チャ', 'ティ', 'ディ', 'ファ', 'フィ', 'ヴィ', 'リュ',
-];
-const TAILS = ['ン', 'ー', 'ル', 'ス', 'ト', 'ド', 'ム', 'ク'];
-
-/** 架空の馬名（2〜9文字のカタカナ）。実在馬との一致は確認していない */
-export function generateHorseName(rng: Rng): string {
-  for (;;) {
-    const count = rng.int(2, 4);
-    let name = '';
-    for (let i = 0; i < count; i++) {
-      name += rng.pick(SYLLABLES);
-      if (rng.chance(0.3)) name += rng.pick(TAILS);
-    }
-    if (name.length >= 3 && name.length <= 9 && !name.startsWith('ー') && !name.startsWith('ン')) {
-      return name;
-    }
-  }
-}
 
 const STYLE_WEIGHTS: readonly (readonly [RunningStyle, number])[] = [
   ['nige', 0.13],
@@ -54,14 +40,18 @@ function stat(rng: Rng, mean: number, bias = 0): number {
   return Math.round(Math.min(100, Math.max(15, rng.normal(mean + bias, 10))));
 }
 
-export function generateHorse(rng: Rng, id: string, classLevel = 60): Horse {
+/**
+ * 馬を1頭作る。馬名は能力とは別の乱数で作る（馬名の作り方を変えても能力やレース結果が変わらないように）。
+ * name を省略すると、id から決まる乱数で作る
+ */
+export function generateHorse(rng: Rng, id: string, classLevel = 60, name?: string): Horse {
   const style = rng.weighted(STYLE_WEIGHTS);
   const b = STYLE_BIAS[style];
   const turfBetter = rng.chance(0.55);
   const off = 1 - rng.range(0.005, 0.03);
   return {
     id,
-    name: generateHorseName(rng),
+    name: name ?? generateHorseName(new Rng(stringSeed(id))),
     style,
     stats: {
       speed: stat(rng, classLevel, b.speed),
@@ -129,11 +119,16 @@ export function createRace(seed: number, options: CreateRaceOptions = {}): RaceS
   const runners = options.runners ?? rng.int(8, 18);
   const frames = frameNumbers(runners);
   const entries: Entry[] = [];
+  // 馬名は別の乱数で、同じレースで重ならないように作る
+  const nameRng = new Rng(seed).fork(7);
+  const taken = new Set<string>();
   for (let i = 0; i < runners; i++) {
+    const name = generateHorseName(nameRng, taken);
+    taken.add(name);
     entries.push({
       number: i + 1,
       frame: frames[i],
-      horse: generateHorse(rng, `h${seed}-${i + 1}`, options.classLevel),
+      horse: generateHorse(rng, `h${seed}-${i + 1}`, options.classLevel, name),
       form: 1 + rng.normal(0, 0.006),
     });
   }

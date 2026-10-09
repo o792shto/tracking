@@ -9,7 +9,7 @@ export const STORAGE_KEY = 'keiba-tracking/save-v1';
  * 保存データの形式の版。番組（開催日ごとのレース）が変わったら上げる。
  * 古い版のデータは、コイン・成績は引き継ぎ、その日の進み具合（結果・未精算の馬券）はやり直す
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export type Screen = 'top' | 'card' | 'watch' | 'result' | 'record';
 

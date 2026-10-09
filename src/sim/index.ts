@@ -1,6 +1,7 @@
 export * from './types';
 export { Rng, hashSeed } from './rng';
-export { createRace, generateHorse, generateHorseName, frameNumbers } from './horse';
+export { createRace, generateHorse, frameNumbers } from './horse';
+export { generateHorseName, nameVariety, NAME_BLOCKLIST } from './names';
 export { simulateRace } from './engine';
 export type { SimulateOptions } from './engine';
 export { formatTime, marginLabel } from './result';
