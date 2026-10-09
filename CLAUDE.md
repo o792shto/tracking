@@ -8,6 +8,7 @@
 - `npm run test` — Vitest（シミュレーションの統計テストを含む）
 - `npm run build` — 型チェック + 本番ビルド
 - `npm run sim:report` — 1000レースの統計表を表示
+- `npm run tracks:import` — コース形状データ（docs/reference/jra-tracks）から src/sim/trackData.ts を作り直す
 
 ## ルール
 
@@ -32,7 +33,7 @@
 
 - 年間の重賞98レースは `src/sim/gradedRaces.ts`（元資料は `docs/reference/graded-races-2026.md`）
 - 1日12Rの番組・重賞の置き換えルール・クラスごとの能力水準は `src/sim/program.ts`
-- 競馬場のコース（1周・直線・坂・内外回り）は `src/sim/venues.ts`（元資料は `docs/reference/course-data.md`。コーナー半径と坂の形は推定）
+- 競馬場のコースの形は `src/sim/racePath.ts`。データ `src/sim/trackData.ts` は `node scripts/import-tracks.mjs` で `docs/reference/jra-tracks/courses_geometry.json`（ユーザー提供の推定モデル。仕様は同じフォルダの `jra_track_spec.md`）から生成する。手で直さない。公式値との照合は `src/sim/venues.ts` と `src/sim/venues.test.ts`
 
 ## 時計・ラップの基準
 

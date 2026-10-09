@@ -1,12 +1,4 @@
-import {
-  courseTrack,
-  lapLength,
-  lapPosition,
-  pastFourthCorner,
-  trackPoint,
-  type RaceResult,
-  type TrackGeometry,
-} from '../sim';
+import { courseOutlines, offsetPoint, pathPoint, racePath, type RacePath, type RaceResult, type Surface } from '../sim';
 import {
   approach,
   boundsOf,
@@ -18,6 +10,8 @@ import {
 } from './camera';
 import { TRACK_THEME, frameColor } from './colors';
 import { logDuration, runningOrder, sampleAt, type HorseSample } from './replay';
+
+type Point = { x: number; y: number };
 
 /** 内ラチの外側に描くコース幅（m） */
 const TRACK_WIDTH = 24;
@@ -53,9 +47,9 @@ export class TrackView {
   private width = 0;
   private height = 0;
   private dpr = 1;
-  private trackOuter: { x: number; y: number }[] = [];
-  private trackInner: { x: number; y: number }[] = [];
-  private track: TrackGeometry = courseTrack({ surface: 'turf', distance: 1600 });
+  /** コースの帯（内ラチと外ラチ）。このレースで走るものは明るく描く */
+  private bands: { surface: Surface; active: boolean; closed: boolean; inner: Point[]; outer: Point[] }[] = [];
+  private path!: RacePath;
   private overviewRect: Rect = { minX: 0, minY: 0, maxX: 1, maxY: 1 };
 
   constructor(
@@ -89,21 +83,22 @@ export class TrackView {
   }
 
   private buildTrack() {
-    const dir = this.result.setup.course.direction;
-    this.track = courseTrack(this.result.setup.course);
-    const lap = lapLength(this.track);
-    this.trackInner = [];
-    this.trackOuter = [];
-    for (let s = 0; s < lap; s += 4) {
-      this.trackInner.push(trackPoint(this.track, dir, s, 0));
-      this.trackOuter.push(trackPoint(this.track, dir, s, TRACK_WIDTH));
-    }
-    this.overviewRect = boundsOf(this.trackOuter, 18);
+    const { course } = this.result.setup;
+    this.path = racePath(course);
+    this.bands = courseOutlines(course).map((o) => ({
+      surface: o.surface,
+      active: o.active,
+      closed: o.closed,
+      inner: o.poses.map((p) => offsetPoint(p, 0, course.direction)),
+      outer: o.poses.map((p) => offsetPoint(p, TRACK_WIDTH, course.direction)),
+    }));
+    // 全体表示は、このレースで走る周回が収まるように
+    const active = this.bands.filter((b) => b.active).flatMap((b) => b.outer);
+    this.overviewRect = boundsOf(active, 18);
   }
 
   private point(d: number, lateral: number) {
-    const { course } = this.result.setup;
-    return trackPoint(this.track, course.direction, lapPosition(this.track, course.distance, d), lateral);
+    return pathPoint(this.path, d, lateral);
   }
 
   /** 時刻 t の画面を描く。frameDt は前回の描画からの実時間（カメラの追従に使う） */
@@ -160,7 +155,7 @@ export class TrackView {
           near.push(this.point(D + 20, 0), this.point(D - 30, TRACK_WIDTH * 0.6));
           return fitRect(boundsOf(near, 8), w, h, 0, 9);
         }
-        if (D - leader.d <= this.track.finishOffset) {
+        if (D - leader.d <= this.path.homeStretch) {
           // 直線：ゴール線を画面に入れて固定気味にし、馬がゴールへ迫っていく動きを見せる。
           // 先頭がゴールに近づくほど枠が縮んで寄っていく
           const front = order
@@ -174,7 +169,7 @@ export class TrackView {
           pts.push(this.point(ahead, 0), this.point(ahead, TRACK_WIDTH * 0.5), this.point(rear - 20, 0));
           return fitRect(boundsOf(pts, 6), w, h, 0, 9);
         }
-        if (pastFourthCorner(this.track, course, leader.d)) {
+        if (leader.d >= this.path.fourthCornerStart) {
           // 4コーナー以降：先頭〜中団に寄ってズーム
           const front = order.slice(0, Math.max(5, Math.ceil(order.length / 2)));
           const pts = front
@@ -217,37 +212,50 @@ export class TrackView {
     ctx.stroke();
   }
 
-  private tracePath(points: { x: number; y: number }[]) {
+  private tracePath(points: Point[], close = true) {
     const ctx = this.ctx;
     points.forEach((p, i) => {
       const s = this.worldToScreen(p);
       if (i === 0) ctx.moveTo(s.x, s.y);
       else ctx.lineTo(s.x, s.y);
     });
-    ctx.closePath();
+    if (close) ctx.closePath();
   }
 
+  /** コースの帯を描く。このレースで使わない周回（もう一方の馬場や回り）は薄く描く */
   private drawTrack() {
     const ctx = this.ctx;
-    ctx.beginPath();
-    this.tracePath(this.trackOuter);
-    this.tracePath([...this.trackInner].reverse());
-    ctx.fillStyle = this.result.setup.course.surface === 'turf' ? TRACK_THEME.turf : TRACK_THEME.dirt;
-    ctx.fill('evenodd');
-
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = TRACK_THEME.rail;
-    ctx.shadowColor = TRACK_THEME.rail;
-    ctx.shadowBlur = 6;
-    ctx.beginPath();
-    this.tracePath(this.trackInner);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = TRACK_THEME.outerRail;
-    ctx.beginPath();
-    this.tracePath(this.trackOuter);
-    ctx.stroke();
+    const ordered = [...this.bands.filter((b) => !b.active), ...this.bands.filter((b) => b.active)];
+    for (const band of ordered) {
+      ctx.globalAlpha = band.active ? 1 : 0.35;
+      ctx.beginPath();
+      if (band.closed) {
+        this.tracePath(band.outer);
+        this.tracePath([...band.inner].reverse());
+      } else {
+        // 引き込み線：内ラチ側と外ラチ側をつないだ四角形
+        this.tracePath([...band.inner, ...[...band.outer].reverse()]);
+      }
+      ctx.fillStyle = band.surface === 'turf' ? TRACK_THEME.turf : TRACK_THEME.dirt;
+      ctx.fill('evenodd');
+    }
+    for (const band of ordered) {
+      ctx.globalAlpha = band.active ? 1 : 0.3;
+      ctx.lineWidth = band.active ? 1.5 : 1;
+      ctx.strokeStyle = TRACK_THEME.rail;
+      ctx.shadowColor = TRACK_THEME.rail;
+      ctx.shadowBlur = band.active ? 6 : 0;
+      ctx.beginPath();
+      this.tracePath(band.inner, band.closed);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = TRACK_THEME.outerRail;
+      ctx.beginPath();
+      this.tracePath(band.outer, band.closed);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** ハロン棒（ゴールまで200mごと）、スタート、ゴール線 */

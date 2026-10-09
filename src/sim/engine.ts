@@ -1,6 +1,5 @@
 import { effectiveAbility, type EffectiveAbility } from './ability';
-import { gradeAt, isCurve, lapPosition } from './course';
-import { courseTrack } from './venues';
+import { racePath } from './racePath';
 import { PARAMS } from './params';
 import { finishRecords, judgePace, lapMarks } from './result';
 import { Rng } from './rng';
@@ -25,6 +24,8 @@ interface Runner {
   style: RunningStyle;
   ab: EffectiveAbility;
   d: number;
+  /** いまいる道筋の区間 */
+  piece: number;
   x: number;
   v: number;
   stamina: number;
@@ -58,11 +59,11 @@ interface Runner {
 export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): RaceResult {
   // ホットループ内でモジュールの名前空間を毎回たどらないよう、ローカルに束縛しておく
   const P = PARAMS;
-  const track = courseTrack(setup.course);
-  const homeStretch = track.homeStretch ?? track.finishOffset;
-  const curveEase = Math.pow(track.radius / P.referenceRadius, P.curveEaseExponent);
-  const curveAt = isCurve;
-  const lapPos = lapPosition;
+  const path = racePath(setup.course);
+  const pieces = path.pieces;
+  const lastPiece = pieces.length - 1;
+  const homeStretch = path.homeStretch;
+  const curveEase = Math.pow(path.finalCornerRadius / P.referenceRadius, P.curveEaseExponent);
   const { course } = setup;
   const D = course.distance;
   const dt = P.dt;
@@ -97,6 +98,7 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       style,
       ab,
       d: 0,
+      piece: 0,
       x: 0.5 + i * 1.0,
       v: 0,
       stamina: ab.staminaPool,
@@ -256,7 +258,10 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       }
 
       // 坂：上りでは脚が鈍り、下りでは少し速くなる（勾配は％で扱う）
-      const slope = gradeAt(track, lapPos(track, D, r.d)) * 100;
+      // いまいる区間（d は減らないので前へ進めるだけでよい）
+      while (r.piece < lastPiece && r.d >= pieces[r.piece + 1].d0) r.piece++;
+      const piece = pieces[r.piece];
+      const slope = piece.grade * 100;
       if (slope !== 0 && !finished) vTarget *= 1 - P.slopeSpeed * slope;
 
       // 前が壁
@@ -313,8 +318,7 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       r.x += clamp(dx, -P.lateralSpeed * dt, P.lateralSpeed * dt);
 
       // 前進（カーブでは外を回るほど内ラチ換算の進みが小さい）
-      const s = lapPos(track, D, r.d);
-      const factor = curveAt(track, s) ? track.radius / (track.radius + r.x) : 1;
+      const factor = piece.kIn === 0 ? 1 : 1 / (1 + piece.kIn * r.x);
       const dPrev = r.d;
       r.d += r.v * dt * factor;
 
