@@ -329,7 +329,9 @@ function Awards({ world }: { world: World }) {
 
 /** ニュースの一覧 */
 export function NewsList({ items, withDate = false }: { items: NewsItem[]; withDate?: boolean }) {
+  const world = useWorldData();
   if (items.length === 0) return <p className="muted">ニュースはまだありません。</p>;
+  const nameOf = (id: number) => world?.horses.find((h) => h.id === id)?.name;
   return (
     <ul className="news-list">
       {items.map((n, i) => {
@@ -347,6 +349,14 @@ export function NewsList({ items, withDate = false }: { items: NewsItem[]; withD
               <b>{n.title}</b>
             )}
             <span>{n.body}</span>
+            {n.horseIds.length > 1 && (
+              <span className="news-horses">
+                {n.horseIds.map((id) => {
+                  const name = nameOf(id);
+                  return name ? <HorseLink key={id} id={id} name={name} /> : null;
+                })}
+              </span>
+            )}
           </li>
         );
       })}

@@ -5,7 +5,7 @@ import { Rng, hashSeed } from '../rng';
 import type { FinishRecord } from '../types';
 import { FIRST_YEAR, WEEKS_PER_YEAR, weekOf } from './calendar';
 import { WORLD, ageOf, currentStats, newHorse, rating } from './horses';
-import { ABROAD, abroadPower, overseasRank } from './overseas';
+import { ABROAD, abroadPower, overseasRanks } from './overseas';
 import { quickFinish } from './quick';
 import { raceSetup, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
 import { RUNS_KEPT, type Award, type NewsItem, type Tier, type World, type WorldHorse } from './types';
@@ -173,9 +173,10 @@ function runAbroad(world: World, card: WeekCard, byId: Map<number, WorldHorse>, 
   const { year, week } = card;
   const progress = seasonProgress(week.index, WEEKS_PER_YEAR);
   for (const { race, horseIds, top } of card.abroad) {
-    for (const id of horseIds) {
-      const h = byId.get(id)!;
-      const rank = overseasRank(race, abroadPower(h, rating(currentStats(h, year, progress)), race), top, rng);
+    const horses = horseIds.map((id) => byId.get(id)!);
+    const ranks = overseasRanks(race, horses.map((h) => abroadPower(h, rating(currentStats(h, year, progress)), race)), top, rng);
+    horses.forEach((h, k) => {
+      const rank = ranks[k];
       const prize = Math.round(race.prize * (PRIZE_SHARE[rank - 1] ?? 0));
       h.starts++;
       if (rank === 1) {
@@ -214,7 +215,7 @@ function runAbroad(world: World, card: WeekCard, byId: Map<number, WorldHorse>, 
             : `${race.place}の${race.name}に挑んだ${h.name}は${rank}着に終わりました。`;
       news(world, 'abroad', title, body, [h.id]);
       if (rng.chance(EVENTS.injury)) injure(world, h, rng);
-    }
+    });
   }
 }
 
@@ -297,6 +298,7 @@ export const tierLabel = (t: Tier) => TIER_LABEL[t];
 /** 年の終わり：表彰と引退 */
 function yearEnd(world: World, year: number, rng: Rng) {
   if (year >= FIRST_YEAR - 1) awards(world, year);
+  const studs: { h: WorldHorse; g1: number }[] = [];
   for (const h of world.horses) {
     if (h.retired) continue;
     const age = ageOf(h, year);
@@ -305,10 +307,24 @@ function yearEnd(world: World, year: number, rng: Rng) {
       retire(world, h, 'age');
     } else if (g1 > 0 && age >= 4 && rng.chance(h.sex === 'colt' ? (age >= 5 ? 0.8 : 0.5) : age >= 5 ? 0.6 : 0.2)) {
       retire(world, h, 'stud');
-      news(world, 'retire', `${h.name}が引退`, `G1 ${g1}勝の${h.name}が引退し、${h.sex === 'colt' ? '種牡馬' : '繁殖牝馬'}になります。`, [h.id]);
+      studs.push({ h, g1 });
     } else if (age >= 4 && h.tier !== 'open' && recentPoor(h) && rng.chance(age >= 5 ? 0.6 : 0.3)) {
       retire(world, h, 'results');
     }
+  }
+  // G1 馬の引退は1つのニュースにまとめる
+  if (studs.length === 1) {
+    const { h, g1 } = studs[0];
+    news(world, 'retire', `${h.name}が引退`, `G1 ${g1}勝の${h.name}が引退し、${h.sex === 'colt' ? '種牡馬' : '繁殖牝馬'}になります。`, [h.id]);
+  } else if (studs.length > 1) {
+    studs.sort((a, b) => b.g1 - a.g1);
+    news(
+      world,
+      'retire',
+      `${year}年限りでG1馬${studs.length}頭が引退`,
+      `${studs.map(({ h, g1 }) => `${h.name}（G1 ${g1}勝・${h.sex === 'colt' ? '種牡馬' : '繁殖牝馬'}）`).join('、')}が引退します。`,
+      studs.map(({ h }) => h.id),
+    );
   }
   // 引退して重賞を勝っていない馬は名簿から外す（保存を小さくする）
   world.horses = world.horses.filter((h) => !h.retired || h.graded.length > 0);

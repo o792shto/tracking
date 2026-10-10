@@ -76,14 +76,20 @@ export const ABROAD = {
 };
 
 /**
- * 海外のレースの着順（日本馬それぞれ）。日本馬の力（総合力＋向き不向き）と、
- * 相手（日本の現役トップ＋レースの強さを中心にばらつく）を比べる
+ * 海外のレースの着順（日本馬の並び順で返す）。日本馬の力（総合力＋向き不向き）と、
+ * 相手（日本のトップの水準＋レースの強さを中心にばらつく）を一緒に並べる
  */
-export function overseasRank(race: OverseasRace, power: number, top: number, rng: Rng): number {
-  const mine = power + rng.normal(0, ABROAD.noise);
-  let rank = 1;
-  for (let k = 0; k < ABROAD.rivals; k++) if (rng.normal(top + race.level, ABROAD.noise + 1) > mine) rank++;
-  return rank;
+export function overseasRanks(race: OverseasRace, powers: number[], top: number, rng: Rng): number[] {
+  const field = [
+    ...powers.map((p, i) => ({ jp: i, v: p + rng.normal(0, ABROAD.noise) })),
+    ...Array.from({ length: ABROAD.rivals }, () => ({ jp: -1, v: rng.normal(top + race.level, ABROAD.noise + 1) })),
+  ];
+  field.sort((a, b) => b.v - a.v);
+  const ranks = powers.map(() => 0);
+  field.forEach((x, i) => {
+    if (x.jp >= 0) ranks[x.jp] = i + 1;
+  });
+  return ranks;
 }
 
 /** 遠征する馬の力（総合力＋向き不向き） */

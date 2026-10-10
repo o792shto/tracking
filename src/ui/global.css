@@ -2717,3 +2717,10 @@ button.link {
   color: #fff;
   font-size: 11px;
 }
+
+.news-horses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+}
