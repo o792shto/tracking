@@ -13,6 +13,7 @@ export function Watch() {
   const settleRace = useGame((s) => s.settle);
   const { meeting, race, market } = useRaceCard(raceIndex);
   const world = useWorldData();
+  const marks = useGame((s) => s.marks[race.key]);
   const result = useRaceResult(raceIndex);
   const highlight = useMemo(() => new Set(placed.flatMap((b) => b.selection)), [placed]);
   const runners = race.setup.entries.length;
@@ -32,6 +33,7 @@ export function Watch() {
       eyebrow={`${race.venue} ${race.no}R ${race.grade ? `${race.name}（${race.grade}）` : race.name}`}
       highlight={highlight}
       popularity={popularity}
+      marks={marks}
       race={raceInfo}
       renderStatus={(order, finished, variant, judging) => {
         if (placed.length === 0) return null;

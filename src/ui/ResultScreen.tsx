@@ -54,6 +54,7 @@ export function ResultScreen() {
   const go = useGame((s) => s.go);
   const [advancing, setAdvancing] = useState(false);
   const { meeting, race, market } = useRaceCard(index);
+  const marks = useGame((s) => s.marks[race.key]);
   const meetingDone = raceIndex >= meeting.races.length;
   const result = useRaceResult(index);
   const tickets = settlement?.tickets ?? [];
@@ -137,7 +138,10 @@ export function ResultScreen() {
                           {f.number}
                         </span>
                       </td>
-                      <td className="name-col">{e.horse.name}</td>
+                      <td className="name-col">
+                        {marks?.[e.number] && <span className="mark-tag">{marks[e.number]}</span>}
+                        {e.horse.name}
+                      </td>
                       <td className="num">{formatTime(f.time)}</td>
                       <td>{f.marginLabel}</td>
                       <td className="num">{f.last3f.toFixed(1)}</td>

@@ -64,13 +64,15 @@ interface Props {
   renderActions?: (allFinished: boolean, skip: () => void) => ReactNode;
   /** 単勝人気（馬番−1 の順）。実況で使う */
   popularity?: readonly number[];
+  /** 出馬表で付けた印（馬番ごと） */
+  marks?: Readonly<Record<number, string>>;
   /** レース名と格（重賞の実況「〇〇、△△を制しました」に使う） */
   race?: { name: string; grade: 'G1' | 'G2' | 'G3' | null; year?: number; stories?: readonly (HorseStory | undefined)[] };
 }
 
 
 /** レース観戦：トラッキング表示＋順位表・ラップ・テロップ */
-export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderActions, popularity, race }: Props) {
+export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderActions, popularity, race, marks }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<RacePlayer | null>(null);
@@ -379,6 +381,7 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
       time={state.time}
       filter={filter}
       masked={masked}
+      marks={marks}
     />
   );
 

@@ -3,6 +3,8 @@ export {
   getGameStore,
   useGame,
   placedTotal,
+  MARKS,
+  type Mark,
   type GameState,
   type Screen,
   type DataTab,

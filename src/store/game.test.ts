@@ -72,6 +72,20 @@ describe('ゲームの状態', () => {
     expect(store.getState()).toMatchObject({ screen: 'result', viewing: 0, freshResult: false });
   });
 
+  it('印：◎○▲ は1レースに1頭だけ、△☆✓ は何頭でも。週が変わると消える', () => {
+    const store = createGameStore(false);
+    const s = () => store.getState();
+    s().setMark('0-0-11', 3, '◎');
+    s().setMark('0-0-11', 5, '◎');
+    s().setMark('0-0-11', 1, '△');
+    s().setMark('0-0-11', 2, '△');
+    expect(s().marks['0-0-11']).toEqual({ 5: '◎', 1: '△', 2: '△' });
+    s().setMark('0-0-11', 1, null);
+    expect(s().marks['0-0-11']).toEqual({ 5: '◎', 2: '△' });
+    s().beginWeek(1);
+    expect(s().marks).toEqual({});
+  });
+
   it('お気に入りの出し入れと、年ごとの馬券の成績', () => {
     const store = createGameStore(false);
     store.getState().toggleFavorite(5);

@@ -18,6 +18,8 @@ interface Props {
   filter?: (row: StandingRow) => boolean;
   /** 写真判定中で順位を伏せる馬番 */
   masked?: ReadonlySet<number>;
+  /** 出馬表で付けた印（馬番ごと） */
+  marks?: Readonly<Record<number, string>>;
 }
 
 function formatBehind(row: StandingRow): string {
@@ -26,7 +28,7 @@ function formatBehind(row: StandingRow): string {
 }
 
 /** 順位表：順位・馬番・馬名・先頭との差（馬身）・現在速度 */
-export function Standings({ rows, entries, follow, onSelect, time, filter, masked }: Props) {
+export function Standings({ rows, entries, follow, onSelect, time, filter, masked, marks }: Props) {
   const prevRank = useRef(new Map<number, number>());
   const flashes = useRef(new Map<number, { dir: 'up' | 'down'; until: number }>());
   const prevTime = useRef(time);
@@ -79,7 +81,10 @@ export function Standings({ rows, entries, follow, onSelect, time, filter, maske
               <span className="num" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
                 {row.number}
               </span>
-              <span className="name">{entry.horse.name}</span>
+              <span className="name">
+                {marks?.[row.number] && <span className="mark-tag">{marks[row.number]}</span>}
+                {entry.horse.name}
+              </span>
               <span className="num-col behind">{hidden ? '' : formatBehind(row)}</span>
               <span className="num-col speed">{row.finished ? '' : row.speedKmh.toFixed(1)}</span>
             </button>

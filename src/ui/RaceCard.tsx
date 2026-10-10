@@ -19,7 +19,7 @@ import {
 } from '../betting';
 import { CONDITION_LABEL, SEX_LABEL, STYLE_LABEL, SURFACE_LABEL, formatPastRun } from '../sim';
 import { frameColor } from '../render';
-import { placedTotal, useGame } from '../store';
+import { MARKS, placedTotal, useGame, type Mark } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { runQuietly, useRaceCard } from './useRace';
 import { unlockAudio } from './sound';
@@ -79,6 +79,7 @@ export function RaceCard() {
   const [active, setActive] = useState(0);
   const [stake, setStake] = useState(100);
   const [message, setMessage] = useState<string | null>(null);
+  const marks = useGame((s) => s.marks[race.key]);
 
   // 発走前のオッズ変動：何度か更新して確定オッズで止まる
   useEffect(() => {
@@ -240,6 +241,7 @@ export function RaceCard() {
           <table className="entry-table">
             <thead>
               <tr>
+                <th className="mark-col">印</th>
                 <th>枠</th>
                 <th>馬番</th>
                 <th className="name-col">馬名</th>
@@ -263,6 +265,9 @@ export function RaceCard() {
                     className={selected ? 'selected' : ''}
                     onClick={() => toggle(e.number)}
                   >
+                    <td className="mark-cell" onClick={(ev) => ev.stopPropagation()}>
+                      <MarkPicker raceKey={race.key} number={e.number} name={e.horse.name} mark={marks?.[e.number]} />
+                    </td>
                     <td className="frame-cell">
                       <span className="frame" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
                         {e.frame}
@@ -500,5 +505,50 @@ export function RaceCard() {
       )}
       {message && <p className="buy-toast" role="status">{message}</p>}
     </main>
+  );
+}
+
+/** 印を付けるボタン。タップで ◎○▲△☆✓ を選ぶ（◎○▲ は1レースに1頭だけ） */
+function MarkPicker({ raceKey, number, name, mark }: { raceKey: string; number: number; name: string; mark?: Mark }) {
+  const setMark = useGame((s) => s.setMark);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (ev: PointerEvent) => {
+      if (!ref.current?.contains(ev.target as Node)) setOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [open]);
+  const choose = (m: Mark | null) => {
+    setMark(raceKey, number, m);
+    setOpen(false);
+  };
+  return (
+    <div className="mark-picker" ref={ref}>
+      <button
+        type="button"
+        className={`mark-btn ${mark ? 'on' : ''}`}
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={`${number}番 ${name}の印${mark ? `（${mark}）` : ''}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {mark ?? ''}
+      </button>
+      {open && (
+        <div className="mark-menu" role="group" aria-label="印を選ぶ">
+          {MARKS.map((m) => (
+            <button key={m} type="button" className={m === mark ? 'on' : ''} aria-pressed={m === mark} onClick={() => choose(m)}>
+              {m}
+            </button>
+          ))}
+          <button type="button" className="clear" onClick={() => choose(null)}>
+            消す
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

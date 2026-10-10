@@ -12,6 +12,12 @@ export const STORAGE_KEY = 'keiba-tracking/save-v1';
 export const SAVE_VERSION = 7;
 
 export type Screen = 'top' | 'card' | 'watch' | 'result' | 'record' | 'data' | 'review';
+/** 出馬表の印 */
+export const MARKS = ['◎', '○', '▲', '△', '☆', '✓'] as const;
+export type Mark = (typeof MARKS)[number];
+/** 1レースに1頭だけ付ける印（付け直すと前の馬からは外れる） */
+const UNIQUE_MARKS: readonly Mark[] = ['◎', '○', '▲'];
+
 /** データ画面のタブ */
 export type DataTab = 'calendar' | 'ranking' | 'graded' | 'awards' | 'news' | 'favorites';
 
@@ -63,6 +69,8 @@ interface SaveData {
   settlements: Record<number, Settlement>;
   /** お気に入りの馬（名簿の id） */
   favorites: number[];
+  /** 出馬表の印（キーはレースのキー、その中は馬番ごと）。その週の分だけ残す */
+  marks: Record<string, Record<number, Mark>>;
   /** 年ごとの馬券の成績（年末のふりかえり用） */
   yearTotals: Record<number, Totals>;
 }
@@ -110,6 +118,8 @@ export interface GameActions {
   settle: (payouts: Payouts, finishOrder: number[], race: SettledRace, show?: boolean) => void;
   /** 確定したレースの結果（着順・払い戻し）を見る */
   showResult: (index: number) => void;
+  /** 出馬表に印を付ける（null で外す）。◎○▲ は1レースに1頭だけ */
+  setMark: (raceKey: string, number: number, mark: Mark | null) => void;
   /** お気に入りに入れる・外す */
   toggleFavorite: (id: number) => void;
   /** その年のふりかえりを見る */
@@ -140,6 +150,7 @@ function initialData(): SaveData {
     settlements: {},
     favorites: [],
     yearTotals: {},
+    marks: {},
   };
 }
 
@@ -257,6 +268,17 @@ export function createGameStore(load = true) {
       });
     },
 
+    setMark: (raceKey, number, mark) =>
+      set((s) => {
+        const current = { ...(s.marks[raceKey] ?? {}) };
+        if (mark && UNIQUE_MARKS.includes(mark)) {
+          for (const [n, m] of Object.entries(current)) if (m === mark) delete current[Number(n)];
+        }
+        if (mark) current[number] = mark;
+        else delete current[number];
+        return { marks: { ...s.marks, [raceKey]: current } };
+      }),
+
     toggleFavorite: (id) =>
       set((s) => ({ favorites: s.favorites.includes(id) ? s.favorites.filter((x) => x !== id) : [...s.favorites, id] })),
 
@@ -277,6 +299,7 @@ export function createGameStore(load = true) {
         results: s.serial === serial ? s.results : {},
         popularity: s.serial === serial ? s.popularity : {},
         settlements: s.serial === serial ? s.settlements : {},
+        marks: s.serial === serial ? s.marks : {},
         placed: s.serial === serial ? s.placed : [],
         coins: s.coins + (s.serial === serial ? 0 : placedTotal(s.placed)) + weeks * BETTING.weeklyDeposit,
         depositedSerial: Math.max(s.depositedSerial, serial),
@@ -306,6 +329,7 @@ export function createGameStore(load = true) {
       settlements: s.settlements,
       favorites: s.favorites,
       yearTotals: s.yearTotals,
+      marks: s.marks,
     };
     saveJSON(STORAGE_KEY, save);
   });

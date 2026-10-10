@@ -2819,3 +2819,69 @@ button.link {
     grid-column: 1 / -1;
   }
 }
+
+/* 出馬表の印 */
+.entry-table .mark-col,
+.entry-table .mark-cell {
+  width: 34px;
+  padding-inline: 4px;
+  text-align: center;
+}
+.mark-picker {
+  position: relative;
+  display: inline-block;
+}
+.mark-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px dashed var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--goal);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.mark-btn.on {
+  border-style: solid;
+  border-color: var(--goal);
+}
+.mark-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 36px);
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+}
+.mark-menu button {
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--goal);
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mark-menu button.on {
+  background: var(--goal);
+  color: var(--bg);
+}
+.mark-menu button.clear {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.mark-tag {
+  margin-right: 4px;
+  color: var(--goal);
+  font-weight: 700;
+}
