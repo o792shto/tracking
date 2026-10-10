@@ -1,4 +1,4 @@
-import { PARAMS, Rng, racePath, type RaceResult } from '../sim';
+import { PARAMS, Rng, crownPreview, racePath, winStory, type HorseStory, type RaceResult } from '../sim';
 import { photoFinish } from './overlay';
 import { runningOrder, sampleAt, type HorseSample } from './replay';
 
@@ -20,9 +20,13 @@ export interface CommentaryOptions {
   popularity?: readonly number[];
   /** 自分の買った馬の馬番 */
   mine?: ReadonlySet<number>;
-  /** 重賞ならレース名と格（「〇〇、△△を制しました」に使う） */
+  /** レース名と格（重賞は「〇〇、△△を制しました」に使う） */
   raceName?: string;
   grade?: 'G1' | 'G2' | 'G3' | null;
+  /** 名簿の馬のこれまでの成績（馬番−1 の順）。クラシックの何冠目か・G1何勝目か・連勝などに使う */
+  stories?: readonly (HorseStory | undefined)[];
+  /** レースの年（クラシックの何冠目かを数える） */
+  year?: number;
 }
 
 /** 隊列で同じ集団とみなす前の馬との差（馬身） */
@@ -158,6 +162,14 @@ export function buildCommentary(result: RaceResult, options: CommentaryOptions =
     } else {
       add(firstCall, say([`ハナを切ったのは${name(a)}。2番手に${name(b)}、${name(c)}も前へ`, `${name(a)}が先頭に立ちました。${name(b)}が続きます`, `主導権を握ったのは${name(a)}。${name(b)}、${name(c)}が追走`]), 'position');
     }
+  }
+
+  // クラシックで二冠・三冠がかかっている馬の紹介
+  if (options.raceName && options.stories && options.year !== undefined) {
+    const previews = entries
+      .map((_, i) => crownPreview(options.raceName!, options.year!, options.stories![i], name(i)))
+      .filter((x): x is string => x !== null);
+    if (previews.length > 0) add(firstCall + 3, previews[0], 'position');
   }
 
   // --- 掛かり・不利 ---
@@ -461,18 +473,14 @@ export function buildCommentary(result: RaceResult, options: CommentaryOptions =
 
   // --- 結果 ---
   let after = (photo ? photo.revealAt : w.time) + 2.5;
-  // 重賞は「〇〇、△△を制しました」
-  if (options.grade && options.raceName) {
-    const race = options.raceName;
-    add(
-      after - 0.6,
-      options.grade === 'G1'
-        ? say([`${name(wi)}、${race}を制しました！`, `${race}の栄冠は${name(wi)}！`, `${name(wi)}、${race}制覇！ 見事G1のタイトルを手にしました`])
-        : say([`${name(wi)}、${race}を制しました！`, `${race}は${name(wi)}が勝利！`, `${name(wi)}が${race}を勝ち取りました`]),
-      'result',
-    );
-    after += 2.4;
-  }
+  // 重賞は「〇〇、△△を制しました」。名簿の成績があれば、クラシックの何冠目か・G1何勝目か・連勝なども
+  const story = winStory(
+    { race: options.raceName ?? '', grade: options.raceName ? (options.grade ?? null) : null, year: options.year ?? 0, name: name(wi) },
+    options.stories?.[wi],
+    new Rng(setup.seed).fork(12),
+  );
+  story.forEach((text, k) => add(after - 0.6 + k * 2.4, text, 'result'));
+  after += story.length * 2.4;
   const p = pop(wi);
   const popWords =
     p === undefined

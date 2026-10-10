@@ -3,18 +3,24 @@ import { isHit, settle } from '../betting';
 import { groupBets } from './betGroups';
 import { useGame } from '../store';
 import { RaceViewer } from './RaceViewer';
-import { settledInfo, useRaceCard, useRaceResult } from './useRace';
+import { settledInfo, useRaceCard, useRaceResult, useWorldData } from './useRace';
+import { storiesFor } from '../sim';
 
 /** 観戦：トラッキング画面と「現在の着順なら的中／不的中」 */
 export function Watch() {
   const raceIndex = useGame((s) => s.raceIndex);
   const placed = useGame((s) => s.placed);
   const settleRace = useGame((s) => s.settle);
-  const { race, market } = useRaceCard(raceIndex);
+  const { meeting, race, market } = useRaceCard(raceIndex);
+  const world = useWorldData();
   const result = useRaceResult(raceIndex);
   const highlight = useMemo(() => new Set(placed.flatMap((b) => b.selection)), [placed]);
   const runners = race.setup.entries.length;
-  const raceInfo = useMemo(() => ({ name: race.name, grade: race.grade }), [race]);
+  // 実況に使う、出走馬のこれまでの成績（クラシックの何冠目か・G1何勝目か・連勝など）
+  const raceInfo = useMemo(
+    () => ({ name: race.name, grade: race.grade, year: meeting.year, stories: world ? storiesFor(world, race.horseIds) : undefined }),
+    [race, meeting.year, world],
+  );
 
   const finishOrder = result.finish.map((f) => f.number);
   const popularity = market.boards[market.boards.length - 1].popularity;

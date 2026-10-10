@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CONDITION_LABEL, SURFACE_LABEL, formatTime, racePath, type RaceResult } from '../sim';
+import { CONDITION_LABEL, SURFACE_LABEL, formatTime, racePath, type HorseStory, type RaceResult } from '../sim';
 import {
   RacePlayer,
   activeTelop,
@@ -65,7 +65,7 @@ interface Props {
   /** 単勝人気（馬番−1 の順）。実況で使う */
   popularity?: readonly number[];
   /** レース名と格（重賞の実況「〇〇、△△を制しました」に使う） */
-  race?: { name: string; grade: 'G1' | 'G2' | 'G3' | null };
+  race?: { name: string; grade: 'G1' | 'G2' | 'G3' | null; year?: number; stories?: readonly (HorseStory | undefined)[] };
 }
 
 
@@ -187,7 +187,7 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
 
   // 実況
   const comments = useMemo(
-    () => buildCommentary(result, { popularity, mine: highlight, raceName: race?.name, grade: race?.grade }),
+    () => buildCommentary(result, { popularity, mine: highlight, raceName: race?.name, grade: race?.grade, year: race?.year, stories: race?.stories }),
     [result, popularity, highlight, race],
   );
   const caption = counting ? [] : currentComments(comments, state.time, 2);
