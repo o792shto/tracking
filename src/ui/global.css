@@ -2284,3 +2284,345 @@ button.result-only {
   overflow-wrap: anywhere;
   line-height: 1.4;
 }
+
+/* ===== 週・データ・馬の詳細 ===== */
+.boot {
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.boot-status {
+  color: var(--glow);
+  text-align: center;
+  line-height: 1.7;
+}
+.advancing {
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--goal);
+  color: var(--goal);
+  font-size: 13px;
+}
+.intro h1 small {
+  margin-left: 6px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.race-day {
+  margin-top: 14px;
+  max-width: 880px;
+}
+.day-head {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: var(--goal);
+}
+.race-no small {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.week-news {
+  max-width: 880px;
+  margin-top: 8px;
+}
+.week-news h2,
+.data-screen h1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 16px;
+  margin: 8px 0;
+}
+.data-screen h1 {
+  font-size: 18px;
+}
+button.link,
+.horse-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--glow);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(94, 240, 255, 0.35);
+  text-underline-offset: 3px;
+}
+button.link {
+  font-size: 12px;
+  font-weight: 400;
+}
+.entry-table .horse-link {
+  color: var(--fg);
+  font-weight: 700;
+}
+.news-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-width: 880px;
+}
+.news-list .news {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+.news-list .news.summer {
+  border-left-color: var(--goal);
+}
+.news-list .news.injury,
+.news-list .news.retire {
+  border-left-color: var(--minus);
+}
+.news-list .news.award {
+  border-left-color: var(--glow);
+}
+.news-list .news span {
+  font-size: 13px;
+  color: var(--muted);
+}
+.news-list .news-date {
+  font-size: 11px !important;
+}
+.news-title {
+  font-weight: 700;
+}
+.data-tabs {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  max-width: 880px;
+  margin-bottom: 8px;
+}
+.data-tabs .seg {
+  font-size: 13px;
+  padding: 0 4px;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.filters .seg-group {
+  grid-template-columns: repeat(4, auto);
+}
+.filters .seg-group .seg,
+.data-screen > section > .seg-group .seg {
+  padding: 0 12px;
+}
+.data-screen > section > .seg-group {
+  grid-template-columns: repeat(2, auto);
+  justify-content: start;
+  margin-bottom: 8px;
+}
+.year-select select {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+.data-table td .muted {
+  margin-left: 4px;
+}
+.data-table tr.won .rank {
+  color: var(--goal);
+  font-weight: 700;
+}
+.calendar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-width: 880px;
+}
+.cal-week {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.cal-week.current {
+  border-color: var(--glow);
+}
+.cal-week.past {
+  opacity: 0.85;
+}
+.cal-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 13px;
+}
+.cal-date span {
+  color: var(--muted);
+}
+.cal-races {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.cal-races li {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.cal-day {
+  color: var(--muted);
+  font-size: 12px;
+}
+.tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid var(--glow);
+  border-radius: 999px;
+  color: var(--glow) !important;
+  font-size: 11px;
+}
+.tag.soft {
+  border-color: var(--line);
+  color: var(--muted) !important;
+}
+.award-year h2 {
+  font-size: 15px;
+  color: var(--goal);
+  margin: 14px 0 6px;
+}
+.awards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 6px;
+  margin: 0;
+  max-width: 880px;
+}
+.awards > div {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.awards > div.top {
+  border-color: var(--goal);
+}
+.awards dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.awards dd {
+  margin: 2px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.awards dd small {
+  color: var(--muted);
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(2, 6, 10, 0.75);
+}
+.modal {
+  position: relative;
+  width: min(760px, 100%);
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.modal-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: pointer;
+  font-size: 18px;
+}
+.horse-modal h2 {
+  margin: 0 48px 4px 0;
+  font-size: 22px;
+}
+.horse-modal h3 {
+  font-size: 14px;
+  margin: 14px 0 6px;
+  color: var(--goal);
+}
+.horse-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  color: var(--muted);
+}
+.horse-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 10px 0 0;
+}
+.horse-stats dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.horse-stats dd {
+  margin: 0;
+  font-family: var(--font-data);
+}
+.graded-wins {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.graded-wins .award {
+  color: var(--goal);
+}
+@media (max-width: 640px) {
+  .cal-week {
+    grid-template-columns: 1fr;
+  }
+  .cal-races li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .cal-day {
+    grid-column: 1 / -1;
+  }
+  .data-tabs .seg {
+    font-size: 12px;
+  }
+}

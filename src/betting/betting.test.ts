@@ -23,13 +23,15 @@ const marketFor = (seed: number, runners?: number) => {
 };
 
 describe('確率とオッズの基本', () => {
-  it('オッズは0.1倍単位の切り捨てで、最低1.0倍', () => {
+  it('オッズは0.1倍単位の切り捨てで、すべての券種で1.1〜99999.9倍', () => {
     expect(roundOdds(3.47)).toBe(3.4);
     expect(roundOdds(12.0)).toBe(12);
-    expect(roundOdds(0.8)).toBe(1);
+    expect(roundOdds(0.8)).toBe(1.1);
+    expect(roundOdds(1.05)).toBe(1.1);
+    expect(roundOdds(1e9)).toBe(99999.9);
   });
 
-  it('オッズは小数第1位まで、複勝は最低1.1倍', () => {
+  it('オッズは小数第1位まで、最低1.1倍', () => {
     const decimals = (x: number) => Math.abs(Math.round(x * 10) - x * 10) < 1e-9;
     for (let seed = 1; seed <= 40; seed++) {
       const { setup, market } = marketFor(seed);
@@ -38,12 +40,12 @@ describe('確率とオッズの基本', () => {
         board.quinella.forEach((o) => expect(decimals(o)).toBe(true));
         for (const r of board.place) {
           expect(decimals(r.min) && decimals(r.max)).toBe(true);
-          expect(r.min).toBeGreaterThanOrEqual(BETTING.placeMinOdds);
+          expect(r.min).toBeGreaterThanOrEqual(BETTING.minOdds);
         }
       }
       const order = simulateRace(setup, { record: false }).finish.map((f) => f.number);
       for (const p of settle(market, order).place) {
-        expect(p.odds).toBeGreaterThanOrEqual(BETTING.placeMinOdds);
+        expect(p.odds).toBeGreaterThanOrEqual(BETTING.minOdds);
         expect(decimals(p.odds)).toBe(true);
       }
     }

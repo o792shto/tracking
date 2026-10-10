@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { BET_TYPE_LABEL, BETTING } from '../betting';
-import { RACES_PER_MEETING, formatTime } from '../sim';
+import { formatTime } from '../sim';
 import { frameColor } from '../render';
 import { useGame } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { sfx } from './sound';
-import { useRaceCard, useRaceResult } from './useRace';
+import { goNextWeek, useRaceCard, useRaceResult } from './useRace';
 import { groupBets } from './betGroups';
 
 /** 高配当：1枚の払い戻しが賭け金のこの倍率以上（万馬券）、または払い戻しの合計がこれ以上 */
@@ -50,9 +50,10 @@ export function ResultScreen() {
   const settlement = useGame((s) => s.lastSettlement);
   const raceIndex = useGame((s) => s.raceIndex);
   const go = useGame((s) => s.go);
-  const nextMeeting = useGame((s) => s.nextMeeting);
+  const [advancing, setAdvancing] = useState(false);
   const index = settlement?.raceIndex ?? Math.max(0, raceIndex - 1);
   const { meeting, race, market } = useRaceCard(index);
+  const meetingDone = raceIndex >= meeting.races.length;
   const result = useRaceResult(index);
   const tickets = settlement?.tickets ?? [];
   const returned = tickets.reduce((a, t) => a + t.payout, 0);
@@ -82,7 +83,6 @@ export function ResultScreen() {
   const { payouts } = settlement;
   const spent = tickets.reduce((a, t) => a + t.bet.stake, 0);
   const per100 = (odds: number) => formatCoins(Math.round(odds * BETTING.unit));
-  const meetingDone = raceIndex >= RACES_PER_MEETING;
 
   return (
     <main className={`screen result-screen ${big ? 'big-win' : ''}`}>
@@ -99,7 +99,7 @@ export function ResultScreen() {
       <header className="card-head">
         <div>
           <span className="eyebrow">
-            {meeting.venue} {race.no}R 確定
+            {race.venue} {race.no}R 確定
           </span>
           <h1>
             <GradeBadge grade={race.grade} />
@@ -241,16 +241,25 @@ export function ResultScreen() {
 
           <div className="result-actions">
             {meetingDone ? (
-              <button type="button" className="primary wide" onClick={nextMeeting}>
-                次の開催日へ
+              <button
+                type="button"
+                className="primary wide"
+                disabled={advancing}
+                onClick={() => {
+                  setAdvancing(true);
+                  void goNextWeek().finally(() => setAdvancing(false));
+                }}
+              >
+                次の週へ
               </button>
             ) : (
               <button type="button" className="primary wide" onClick={() => go('card')}>
-                次のレース（{raceIndex + 1}R）の出馬表へ
+                次のレース（{meeting.races[raceIndex].venueName}
+                {meeting.races[raceIndex].no}R）の出馬表へ
               </button>
             )}
             <button type="button" className="wide" onClick={() => go('top')}>
-              開催トップへ
+              今週のレース一覧へ
             </button>
           </div>
         </div>

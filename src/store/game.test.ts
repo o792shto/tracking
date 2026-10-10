@@ -23,6 +23,8 @@ const payouts: Payouts = {
 
 afterEach(() => vi.unstubAllGlobals());
 
+const race = (venue = '中山競馬場') => ({ venue, no: 11, raceName: '中山金杯', key: '0-0-11', popularity: [2, 1, 3, 4] });
+
 describe('ゲームの状態', () => {
   it('買うとコインが減り、取り消すと戻る', () => {
     const store = createGameStore(false);
@@ -50,7 +52,7 @@ describe('ゲームの状態', () => {
     s.buy({ type: 'win', selection: [3], stake: 1000 });
     s.buy({ type: 'quinella', selection: [7, 3], stake: 200 });
     s.buy({ type: 'place', selection: [5], stake: 300 });
-    store.getState().settle(payouts, [3, 7, 1, 5], '汐見野競馬場');
+    store.getState().settle(payouts, [3, 7, 1, 5], race());
     const after = store.getState();
     expect(after.coins).toBe(BETTING.initialCoins - 1500 + 2500 + 1960);
     expect(after.totals).toMatchObject({ spent: 1500, returned: 4460, bestPayout: 2500, races: 1, hitRaces: 1 });
@@ -60,30 +62,25 @@ describe('ゲームの状態', () => {
     expect(after.screen).toBe('result');
   });
 
-  it('コインが尽きたら10000コインを再入金できる', () => {
+  it('確定したレースの人気を週の記録に残す', () => {
     const store = createGameStore(false);
-    store.setState({ coins: 150 });
-    expect(store.getState().canRedeposit()).toBe(false);
-    store.setState({ coins: 50 });
-    expect(store.getState().canRedeposit()).toBe(true);
-    store.getState().redeposit();
-    expect(store.getState().coins).toBe(50 + 10_000);
-    expect(store.getState().redeposits).toBe(1);
-    expect(store.getState().canRedeposit()).toBe(false);
+    store.getState().settle(payouts, [3, 7, 1], race());
+    expect(store.getState().popularity['0-0-11']).toEqual([2, 1, 3, 4]);
+    expect(store.getState().history).toHaveLength(0);
   });
 
-  it('次の開催日へスキップすると、買った馬券を精算してから進む', () => {
+  it('新しい週に入ると週の進み具合をやり直し、1万コインが入金される', () => {
     const store = createGameStore(false);
+    store.getState().settle(payouts, [3, 7, 1], race());
     store.getState().buy({ type: 'win', selection: [3], stake: 1000 });
-    store.getState().skipDay({ payouts, finishOrder: [3, 7, 1], venue: '中山競馬場' });
+    store.getState().beginWeek(1);
     const s = store.getState();
-    expect(s.coins).toBe(BETTING.initialCoins - 1000 + 2500);
-    expect(s.meetingSeed).toBe(2);
-    expect(s.raceIndex).toBe(0);
-    expect(s.placed).toEqual([]);
-    expect(s.screen).toBe('top');
-    store.getState().skipDay(null);
-    expect(store.getState().meetingSeed).toBe(3);
+    // 残っていた馬券は返金
+    expect(s.coins).toBe(BETTING.initialCoins + BETTING.weeklyDeposit);
+    expect(s).toMatchObject({ serial: 1, raceIndex: 0, results: {}, popularity: {}, placed: [], depositedSerial: 1, screen: 'top' });
+    // 同じ週をもう一度始めても入金されない
+    store.getState().beginWeek(1);
+    expect(store.getState().coins).toBe(BETTING.initialCoins + BETTING.weeklyDeposit);
   });
 });
 
@@ -119,14 +116,14 @@ describe('保存', () => {
     });
     const a = createGameStore();
     a.getState().buy({ type: 'win', selection: [3], stake: 1000 });
-    a.getState().settle(payouts, [3, 7, 1], '汐見野競馬場');
+    a.getState().settle(payouts, [3, 7, 1], race());
     const b = createGameStore();
     expect(b.getState().coins).toBe(a.getState().coins);
     expect(b.getState().totals).toEqual(a.getState().totals);
     expect(b.getState().screen).toBe('top');
   });
 
-  it('古い版の保存データは、コインと成績を引き継いでその日を最初からやり直す', () => {
+  it('古い版の保存データは、コインと成績を引き継いでゲーム開始の週からやり直す', () => {
     const mem = new Map<string, string>();
     vi.stubGlobal('window', {
       localStorage: {
@@ -153,7 +150,7 @@ describe('保存', () => {
     const s = createGameStore().getState();
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.coins).toBe(9300);
-    expect(s.meetingSeed).toBe(3);
+    expect(s.serial).toBe(0);
     expect(s.raceIndex).toBe(0);
     expect(s.placed).toEqual([]);
     expect(s.results).toEqual({});

@@ -1,143 +1,148 @@
-import { BETTING, buildMarket, settle } from '../betting';
-import { CONDITION_LABEL, RACES_PER_MEETING, SURFACE_LABEL, horseProfiles, simulateRace } from '../sim';
+import { useState } from 'react';
+import { BETTING } from '../betting';
+import { CONDITION_LABEL, SURFACE_LABEL, WEEKDAY_LABEL, type MeetingRace } from '../sim';
 import { useGame } from '../store';
 import { frameColor } from '../render';
 import { GradeBadge, formatCoins } from './GameHeader';
-import { useMeeting } from './useRace';
+import { goNextWeek, runQuietly, skipWeek, useMeeting, useWorldData } from './useRace';
+import { NewsList } from './DataScreen';
 
-/** 開催トップ：本日のレース一覧 */
+/** 今週のトップ：同じ週の開催日のレース（10R〜12R）をまとめて表示する */
 export function MeetingTop() {
   const meeting = useMeeting();
+  const world = useWorldData();
   const raceIndex = useGame((s) => s.raceIndex);
   const results = useGame((s) => s.results);
   const placed = useGame((s) => s.placed);
   const go = useGame((s) => s.go);
-  const nextMeeting = useGame((s) => s.nextMeeting);
-  const canRedeposit = useGame((s) => s.canRedeposit());
-  const redeposit = useGame((s) => s.redeposit);
+  const openData = useGame((s) => s.openData);
   const settleRace = useGame((s) => s.settle);
-  const skipDay = useGame((s) => s.skipDay);
-  const done = raceIndex >= RACES_PER_MEETING;
-  const mainIndex = meeting.races.findIndex((r) => r.no === 11);
-  const canSkip = raceIndex < mainIndex;
+  const [busy, setBusy] = useState(false);
+  const done = raceIndex >= meeting.races.length;
 
-  /** 観戦せずにレースを走らせて、払い戻しと着順を出す */
-  const runQuietly = (i: number) => {
-    const { setup } = meeting.races[i];
-    const result = simulateRace(setup, { record: false });
-    const finishOrder = result.finish.map((f) => f.number);
-    return { payouts: settle(buildMarket(setup, horseProfiles(setup)), finishOrder), finishOrder, venue: meeting.venue };
+  const run = (f: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    void f().finally(() => setBusy(false));
   };
 
-  /** メインレースの前まで、残りのレースを観戦せずに確定させる（買った馬券は結果どおり精算） */
-  const skipToMain = () => {
-    for (let i = raceIndex; i < mainIndex; i++) {
-      const r = runQuietly(i);
-      settleRace(r.payouts, r.finishOrder, r.venue);
+  // 日ごとにまとめる（並びは発走順）
+  const days: { key: string; label: string; races: { race: MeetingRace; index: number }[] }[] = [];
+  meeting.races.forEach((race, index) => {
+    const key = `${race.month}/${race.date}`;
+    let day = days.find((d) => d.key === key);
+    if (!day) {
+      day = { key, label: `${race.month}月${race.date}日（${WEEKDAY_LABEL[race.weekday]}）`, races: [] };
+      days.push(day);
     }
-    go('card');
-  };
-
-  /** この日の残りのレースを飛ばして次の開催日へ（買った馬券があれば、そのレースだけ走らせて精算） */
-  const skipToNextDay = () => {
-    skipDay(!done && placed.length > 0 ? runQuietly(raceIndex) : null);
-  };
+    day.races.push({ race, index });
+  });
+  const news = world ? world.news.filter((n) => n.serial >= world.serial - 1).slice(-4).reverse() : [];
 
   return (
     <main className="screen meeting-top">
       <section className="intro">
         <h1>
-          {meeting.month}月{meeting.date}日 {meeting.venue}
+          {meeting.year}年 第{meeting.week}週
+          <small>（{meeting.label}）</small>
         </h1>
         <p>
-          レースは1Rから順に行います。出馬表で馬券を買って発走させてください。馬券を買わずに観戦だけもできます。
+          今週の10R〜12Rを発走順に行います。出馬表で馬券を買って発走させてください。毎週{formatCoins(BETTING.weeklyDeposit)}
+          コインが入金されます。
         </p>
         {!done && (
           <div className="skip-main">
-            {canSkip && (
-              <button type="button" className="primary" onClick={skipToMain}>
-                メインレース（11R {meeting.races[mainIndex].name}）までスキップ
-              </button>
-            )}
-            <button type="button" onClick={skipToNextDay}>
-              次の開催日へスキップ
+            <button type="button" onClick={() => run(() => skipWeek(meeting))} disabled={busy}>
+              次の週へスキップ
             </button>
-            {placed.length > 0 && <span className="muted small">購入済みの{raceIndex + 1}Rの馬券は、結果どおりに精算します。</span>}
-          </div>
-        )}
-        {canRedeposit && (
-          <div className="rescue" role="status">
-            <span>所持コインがなくなりました。</span>
-            <button type="button" className="primary" onClick={redeposit}>
-              {formatCoins(BETTING.redeposit)}コインを再入金する
-            </button>
+            {placed.length > 0 && <span className="muted small">購入済みのレースの馬券は、結果どおりに精算します。</span>}
           </div>
         )}
       </section>
 
-      <ol className="race-list">
-        {meeting.races.map((race, i) => {
-          const { course, entries } = race.setup;
-          const top3 = results[i];
-          const status = i < raceIndex ? 'done' : i === raceIndex ? 'next' : 'later';
-          return (
-            <li key={race.no} className={`race-item ${status}`}>
-              <span className="race-no">{race.no}R</span>
-              <span className="race-desc">
-                <strong>
-                  <GradeBadge grade={race.grade} />
-                  {race.name}
-                </strong>
-                <span>
-                  {race.className && `${race.className}・`}
-                  {SURFACE_LABEL[course.surface]}
-                  {course.distance}m{race.layoutLabel && `（${race.layoutLabel}）`}・{course.direction === 'right' ? '右' : '左'}・{CONDITION_LABEL[course.condition]}・
-                  {entries.length}頭
-                </span>
-              </span>
-              <span className="race-state">
-                {status === 'done' && top3 && (
-                  <span className="top3" aria-label={`1着から ${top3.join('、')}番`}>
-                    {top3.map((num) => {
-                      const entry = entries[num - 1];
-                      if (!entry) return null;
-                      const c = frameColor(entry.frame);
-                      return (
-                        <span key={num} className="chip" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
-                          {num}
-                        </span>
-                      );
-                    })}
+      {news.length > 0 && (
+        <section className="week-news">
+          <h2>
+            競馬ニュース
+            <button type="button" className="link" onClick={() => openData('news')}>
+              すべて見る
+            </button>
+          </h2>
+          <NewsList items={news} />
+        </section>
+      )}
+
+      {days.map((day) => (
+        <section key={day.key} className="race-day">
+          <h2 className="day-head">{day.label}</h2>
+          <ol className="race-list">
+            {day.races.map(({ race, index: i }) => {
+              const { course, entries } = race.setup;
+              const top3 = results[i];
+              const status = i < raceIndex ? 'done' : i === raceIndex ? 'next' : 'later';
+              return (
+                <li key={race.key} className={`race-item ${status}`}>
+                  <span className="race-no">
+                    <small>{race.venueName}</small>
+                    {race.no}R
                   </span>
-                )}
-                {status === 'next' && (
-                  <span className="next-actions">
-                    <button type="button" className="primary" onClick={() => go('card')}>
-                      {placed.length ? `購入済み ${placed.length}点・出馬表へ` : '出馬表・馬券購入'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const r = runQuietly(i);
-                        settleRace(r.payouts, r.finishOrder, r.venue);
-                      }}
-                    >
-                      結果だけ見る
-                    </button>
+                  <span className="race-desc">
+                    <strong>
+                      <GradeBadge grade={race.grade} />
+                      {race.name}
+                    </strong>
+                    <span>
+                      {race.className && `${race.className}・`}
+                      {SURFACE_LABEL[course.surface]}
+                      {course.distance}m{race.layoutLabel && `（${race.layoutLabel}）`}・{course.direction === 'right' ? '右' : '左'}・
+                      {CONDITION_LABEL[course.condition]}・{entries.length}頭
+                    </span>
                   </span>
-                )}
-                {status === 'later' && <span className="muted">発売前</span>}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
+                  <span className="race-state">
+                    {status === 'done' && top3 && (
+                      <span className="top3" aria-label={`1着から ${top3.join('、')}番`}>
+                        {top3.map((num) => {
+                          const entry = entries[num - 1];
+                          if (!entry) return null;
+                          const c = frameColor(entry.frame);
+                          return (
+                            <span key={num} className="chip" style={{ background: c.fill, color: c.text, borderColor: c.stroke }}>
+                              {num}
+                            </span>
+                          );
+                        })}
+                      </span>
+                    )}
+                    {status === 'next' && (
+                      <span className="next-actions">
+                        <button type="button" className="primary" onClick={() => go('card')}>
+                          {placed.length ? `購入済み ${placed.length}点・出馬表へ` : '出馬表・馬券購入'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const r = runQuietly(race);
+                            settleRace(r.payouts, r.finishOrder, r.info);
+                          }}
+                        >
+                          結果だけ見る
+                        </button>
+                      </span>
+                    )}
+                    {status === 'later' && <span className="muted">発売前</span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ))}
 
       {done && (
         <div className="meeting-done">
-          <p>この日のレースはすべて終わりました。</p>
-          <button type="button" className="primary" onClick={nextMeeting}>
-            次の開催日へ
+          <p>今週のレースはすべて終わりました。</p>
+          <button type="button" className="primary" disabled={busy} onClick={() => run(goNextWeek)}>
+            次の週へ
           </button>
         </div>
       )}

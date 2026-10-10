@@ -1,22 +1,11 @@
-import { GRADED_RACES_2026, type AgeCondition, type GradedRace, type Venue } from './gradedRaces';
-import { createRace } from './horse';
+import type { AgeCondition, GradedRace, Venue } from './gradedRaces';
 import { findStart } from './racePath';
-import { Rng, hashSeed } from './rng';
-import { CONDITIONS, DISTANCES_BY_SURFACE, type Direction, type RaceSetup, type Surface, type TrackCondition } from './types';
+import type { Rng } from './rng';
+import { CONDITIONS, DISTANCES_BY_SURFACE, type Direction, type Surface, type TrackCondition } from './types';
+import type { VenueDay } from './world/calendar';
 
 /** 1日のレース数 */
 export const RACES_PER_DAY = 12;
-/** 開催日のメインレース（11R）になる重賞。12Rに組む重賞（目黒記念）は同じ日に入れる */
-const MAIN_RACES = GRADED_RACES_2026.filter((g) => g.raceNo === undefined);
-/** 1年の開催日数（メインレースになる重賞の数と同じ） */
-export const DAYS_PER_YEAR = MAIN_RACES.length;
-
-/** その日の12Rに組む重賞（同じ日・同じ競馬場） */
-function lastRaceOf(main: GradedRace): GradedRace | undefined {
-  return GRADED_RACES_2026.find(
-    (g) => g.raceNo === 12 && g.month === main.month && g.day === main.day && g.venue === main.venue,
-  );
-}
 
 /** クラス（条件） */
 export type RaceClass = 'newcomer' | 'maiden' | '1win' | '2win' | '3win' | 'open' | 'G3' | 'G2' | 'G1';
@@ -39,24 +28,6 @@ export const AGE_LABEL: Record<AgeCondition, string> = {
   '3up': '3歳以上',
   '4up': '4歳以上',
 };
-
-/**
- * クラスごとの能力水準（能力値の平均）。上のクラスほど速い時計で走る。
- * 段階1〜3の調整は水準60（3勝クラス相当）で行った。
- */
-export const CLASS_LEVEL: Record<RaceClass, number> = {
-  newcomer: 45,
-  maiden: 47,
-  '1win': 52,
-  '2win': 56,
-  '3win': 60,
-  open: 63,
-  G3: 66,
-  G2: 69,
-  G1: 73,
-};
-/** 若い馬ほど能力水準が低い（完成度の差） */
-const AGE_LEVEL_OFFSET: Record<AgeCondition, number> = { '2': -4, '3': -2, '3up': 0, '4up': 0 };
 
 /** 標準距離（重賞以外のレースと、置き換えたオープンの距離） */
 export const STANDARD_DISTANCES = DISTANCES_BY_SURFACE;
@@ -157,45 +128,19 @@ export const RUNNERS: Record<RaceClass, [number, number]> = {
   G1: [15, 18],
 };
 
-export interface RaceDay {
-  /** 通算の開催日（1始まり）。meetingSeed と同じ */
-  serial: number;
-  year: number;
-  /** その年の何日目か（0始まり） */
-  dayIndex: number;
-  month: number;
-  day: number;
-  venue: Venue;
-  /** その日の馬場状態（芝・ダートそれぞれ） */
-  condition: Record<Surface, TrackCondition>;
-  races: ProgramRace[];
-}
+/** 回り（東京は左回り、中山・京都・阪神は右回り） */
+export const VENUE_DIRECTION: Record<Venue, Direction> = { 東京: 'left', 中山: 'right', 京都: 'right', 阪神: 'right' };
 
-/** 通算 serial 日目の開催（97日で1年） */
-export function raceDay(serial: number): RaceDay {
-  const n = Math.max(1, Math.floor(serial));
-  const dayIndex = (n - 1) % DAYS_PER_YEAR;
-  const year = 2026 + Math.floor((n - 1) / DAYS_PER_YEAR);
-  const main = MAIN_RACES[dayIndex];
-  const last = lastRaceOf(main);
-  const rng = new Rng(hashSeed(n * 7919 + 17));
-  const slots = undercard(main.month);
-  // 馬場状態はその日の芝・ダートで共通。雨の日は両方とも悪くなりやすい
-  const wet = rng.weighted([
-    [0, 0.6],
-    [1, 0.2],
-    [2, 0.12],
-    [3, 0.08],
-  ] as const);
-  const shift = () => Math.max(0, Math.min(3, wet + (rng.chance(0.25) ? (rng.chance(0.5) ? 1 : -1) : 0)));
-  const condition: Record<Surface, TrackCondition> = { turf: CONDITIONS[wet], dirt: CONDITIONS[shift()] };
+/** 1つの競馬場の1日の番組（12R）。11Rは重賞、ダービーデーは12Rも重賞（目黒記念）。runners は出走頭数の上限 */
+export function venueDayProgram(day: VenueDay, rng: Rng): ProgramRace[] {
+  const slots = undercard(day.month);
   const races: ProgramRace[] = [];
   let slotIdx = 0;
-  // 牝馬限定の条件戦は1日1レース（メインレース以外から選ぶ）
-  const filliesNo = rng.pick(last ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
+  // 牝馬限定の条件戦は1日1レース（重賞以外から選ぶ）
+  const filliesNo = rng.pick(day.last ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
   for (let no = 1; no <= RACES_PER_DAY; no++) {
-    if (no === 11 || (no === 12 && last)) {
-      const m = mainRaceOf(no === 11 ? main : last!);
+    if (no === 11 || (no === 12 && day.last)) {
+      const m = mainRaceOf(no === 11 ? day.main : day.last!);
       races.push({ no, ...m, runners: rng.int(...RUNNERS[m.raceClass]) });
       continue;
     }
@@ -207,44 +152,21 @@ export function raceDay(serial: number): RaceDay {
       surface: slot.surface,
       age: slot.age,
       fillies: no === filliesNo,
-      distance: rng.pick(venueDistances(main.venue, slot.surface)),
+      distance: rng.pick(venueDistances(day.venue, slot.surface)),
       runners: rng.int(...RUNNERS[slot.raceClass]),
     });
   }
-  return { serial: n, year, dayIndex, month: main.month, day: main.day, venue: main.venue, condition, races };
+  return races;
 }
 
-/** レースの能力水準 */
-export function raceLevel(race: ProgramRace): number {
-  return CLASS_LEVEL[race.raceClass] + AGE_LEVEL_OFFSET[race.age];
-}
-
-/** 回り（東京は左回り、中山・京都・阪神は右回り） */
-export const VENUE_DIRECTION: Record<Venue, Direction> = { 東京: 'left', 中山: 'right', 京都: 'right', 阪神: 'right' };
-
-/**
- * 出馬表に出す近走の数。新馬戦はまだ走っていないので0、2歳戦はキャリアが浅いので1〜4走、
- * それ以外は4走
- */
-export function pastRunsFor(race: Pick<ProgramRace, 'raceClass' | 'age'>): [number, number] {
-  if (race.raceClass === 'newcomer') return [0, 0];
-  if (race.age === '2') return [1, 4];
-  return [4, 4];
-}
-
-/** 番組のレースから出走表を作る */
-export function setupFor(day: RaceDay, race: ProgramRace): RaceSetup {
-  const seed = hashSeed(day.serial * 131 + race.no);
-  return createRace(seed, {
-    course: {
-      surface: race.surface,
-      distance: race.distance,
-      direction: VENUE_DIRECTION[day.venue],
-      condition: day.condition[race.surface],
-      venue: day.venue,
-    },
-    runners: race.runners,
-    classLevel: raceLevel(race),
-    pastRuns: pastRunsFor(race),
-  });
+/** その日の馬場状態。芝・ダートで共通の天気から決め、雨の日は両方とも悪くなりやすい */
+export function dayCondition(rng: Rng): Record<Surface, TrackCondition> {
+  const wet = rng.weighted([
+    [0, 0.6],
+    [1, 0.2],
+    [2, 0.12],
+    [3, 0.08],
+  ] as const);
+  const shift = () => Math.max(0, Math.min(3, wet + (rng.chance(0.25) ? (rng.chance(0.5) ? 1 : -1) : 0)));
+  return { turf: CONDITIONS[wet], dirt: CONDITIONS[shift()] };
 }

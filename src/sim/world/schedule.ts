@@ -1,19 +1,9 @@
 import type { Grade } from '../gradedRaces';
 import { frameNumbers } from '../horse';
-import {
-  CLASS_LABEL,
-  RACES_PER_DAY,
-  RUNNERS,
-  VENUE_DIRECTION,
-  mainRaceOf,
-  undercard,
-  venueDistances,
-  type ProgramRace,
-  type RaceClass,
-} from '../program';
+import { VENUE_DIRECTION, dayCondition, mainRaceOf, venueDayProgram, type ProgramRace, type RaceClass } from '../program';
 import { Rng, hashSeed } from '../rng';
-import { CONDITIONS, type Entry, type PastRun, type RaceSetup, type Surface, type TrackCondition } from '../types';
-import { WEEKS_PER_YEAR, weekOf, type RaceWeek, type VenueDay } from './calendar';
+import { type Entry, type PastRun, type RaceSetup, type Surface, type TrackCondition } from '../types';
+import { WEEKS_PER_YEAR, weekOf, type RaceWeek } from './calendar';
 import { ageOf, aptitudeFit, currentStats, rating, simHorse } from './horses';
 import type { RunRecord, Tier, World, WorldHorse } from './types';
 
@@ -47,46 +37,6 @@ export function seasonProgress(weekIndex: number, weeksPerYear: number): number 
   return weekIndex / Math.max(1, weeksPerYear - 1);
 }
 
-/** 1日の番組（12R）。runners は出走頭数の上限 */
-function dayProgram(day: VenueDay, rng: Rng): ProgramRace[] {
-  const slots = undercard(day.month);
-  const races: ProgramRace[] = [];
-  let slotIdx = 0;
-  // 牝馬限定の条件戦は1日1レース（重賞以外から選ぶ）
-  const filliesNo = rng.pick(day.last ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
-  for (let no = 1; no <= RACES_PER_DAY; no++) {
-    if (no === 11 || (no === 12 && day.last)) {
-      const m = mainRaceOf(no === 11 ? day.main : day.last!);
-      races.push({ no, ...m, runners: rng.int(...RUNNERS[m.raceClass]) });
-      continue;
-    }
-    const slot = slots[slotIdx++];
-    races.push({
-      no,
-      raceClass: slot.raceClass,
-      name: CLASS_LABEL[slot.raceClass],
-      surface: slot.surface,
-      age: slot.age,
-      fillies: no === filliesNo,
-      distance: rng.pick(venueDistances(day.venue, slot.surface)),
-      runners: rng.int(...RUNNERS[slot.raceClass]),
-    });
-  }
-  return races;
-}
-
-function dayCondition(rng: Rng): Record<Surface, TrackCondition> {
-  // 馬場状態はその日の芝・ダートで共通。雨の日は両方とも悪くなりやすい
-  const wet = rng.weighted([
-    [0, 0.6],
-    [1, 0.2],
-    [2, 0.12],
-    [3, 0.08],
-  ] as const);
-  const shift = () => Math.max(0, Math.min(3, wet + (rng.chance(0.25) ? (rng.chance(0.5) ? 1 : -1) : 0)));
-  return { turf: CONDITIONS[wet], dirt: CONDITIONS[shift()] };
-}
-
 const GRADED: readonly RaceClass[] = ['G1', 'G2', 'G3'];
 const isGraded = (c: RaceClass): c is Grade => GRADED.includes(c);
 
@@ -100,7 +50,7 @@ const TIER_BELOW: Partial<Record<Tier, Tier>> = { '1win': 'maiden', '2win': '1wi
 /** 出走表を作るときの調整値 */
 export const ENTRY = {
   /** 前走から何週あけるか（最小） */
-  minRest: 2,
+  minRest: 3,
   /** オープン馬の最小間隔（G1 以外） */
   openRest: 3,
   /** 出走を決めるときの距離・馬場の適性の下限（これより合わない馬は出さない） */
@@ -147,7 +97,7 @@ export function weekCard(world: World): WeekCard {
   week.days.forEach((day, dayIndex) => {
     const dayRng = rng.fork(dayIndex + 1);
     conditions.push(dayCondition(dayRng.fork(1)));
-    for (const program of dayProgram(day, dayRng.fork(2))) {
+    for (const program of venueDayProgram(day, dayRng.fork(2))) {
       races.push({
         dayIndex,
         no: program.no,

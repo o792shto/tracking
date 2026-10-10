@@ -2,30 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { simulateRace } from './engine';
 import { GRADED_RACES_2026 } from './gradedRaces';
 import { createRace } from './horse';
-import { createMeeting } from './meeting';
-import { horseProfiles } from './profile';
-import { DAYS_PER_YEAR, mainRaceOf, nearestStandardDistance, raceDay, raceLevel } from './program';
+import { dayCondition, mainRaceOf, nearestStandardDistance, venueDayProgram, VENUE_DIRECTION } from './program';
+import { Rng } from './rng';
+import { RACE_WEEKS } from './world/calendar';
 import { findStart, racePath } from './racePath';
 import { lapMarks } from './result';
 
 const byName = (name: string) => mainRaceOf(GRADED_RACES_2026.find((g) => g.name === name)!);
 
+/** 1年分の開催日（競馬場ごと）と、その日の番組 */
+const yearDays = () => RACE_WEEKS.flatMap((w) => w.days.map((day, i) => ({ day, races: venueDayProgram(day, new Rng(w.index * 10 + i)) })));
+
 describe('重賞の置き換え', () => {
   it('98レースの重賞を97日に組む（目黒記念はダービーデーの12R）', () => {
     expect(GRADED_RACES_2026).toHaveLength(98);
-    expect(DAYS_PER_YEAR).toBe(97);
-    let derbyDay = null as ReturnType<typeof raceDay> | null;
-    const mains = new Set<string>();
-    for (let serial = 1; serial <= DAYS_PER_YEAR; serial++) {
-      const day = raceDay(serial);
-      mains.add(`${day.month}/${day.day} ${day.venue}`);
-      if (day.races[10].name === '日本ダービー') derbyDay = day;
-      expect(day.races.some((r) => r.name === '目黒記念' && r.no === 11)).toBe(false);
-    }
-    expect(derbyDay).not.toBeNull();
-    expect(derbyDay!.races[11]).toMatchObject({ no: 12, name: '目黒記念', raceClass: 'G2', distance: 2500 });
-    expect(derbyDay!.races.filter((r) => r.fillies && r.no >= 11)).toHaveLength(0);
-    expect(mains.size).toBe(97);
+    const days = yearDays();
+    expect(days).toHaveLength(97);
+    const derby = days.find((d) => d.races[10].name === '日本ダービー')!;
+    expect(derby.races[11]).toMatchObject({ no: 12, name: '目黒記念', raceClass: 'G2', distance: 2500 });
+    expect(derby.races.filter((r) => r.fillies && r.no >= 11)).toHaveLength(0);
+    for (const d of days) expect(d.races.some((r) => r.name === '目黒記念' && r.no === 11)).toBe(false);
+    expect(new Set(days.map((d) => `${d.day.month}/${d.day.day} ${d.day.venue}`)).size).toBe(97);
   });
 
   it('重賞はすべて本来の格・レース名・距離のまま（オープンへの置き換えはしない）', () => {
@@ -57,50 +54,29 @@ describe('重賞の置き換え', () => {
 });
 
 describe('1日の番組', () => {
-  it('1日12Rで、11Rがその日の重賞。場は重賞の場', () => {
-    const mains = GRADED_RACES_2026.filter((g) => g.raceNo === undefined);
-    for (const serial of [1, 30, 70, 97]) {
-      const day = raceDay(serial);
-      const g = mains[serial - 1];
-      expect(day.races).toHaveLength(12);
-      expect(day.races[10]).toMatchObject(mainRaceOf(g));
-      expect(day.venue).toBe(g.venue);
+  it('1日12Rで、11Rがその日の重賞', () => {
+    for (const { day, races } of yearDays()) {
+      expect(races).toHaveLength(12);
+      expect(races[10]).toMatchObject(mainRaceOf(day.main));
     }
   });
 
-  it('同じ日の芝・ダートはそれぞれ馬場状態が同じ', () => {
-    const m = createMeeting(12);
-    for (const surface of ['turf', 'dirt'] as const) {
-      const conds = new Set(m.races.filter((r) => r.setup.course.surface === surface).map((r) => r.setup.course.condition));
-      expect(conds.size).toBeLessThanOrEqual(1);
-    }
+  it('同じ日の芝・ダートの馬場状態は天気から決まり、道悪は1〜4割程度', () => {
+    let wet = 0;
+    for (let i = 0; i < 400; i++) if (dayCondition(new Rng(i)).turf !== 'good') wet++;
+    expect(wet / 400).toBeGreaterThan(0.25);
+    expect(wet / 400).toBeLessThan(0.55);
   });
 
   it('牝馬限定の条件戦は1日1レース（重賞の牝馬限定は別）', () => {
-    for (const serial of [1, 20, 50, 80]) {
-      const undercard = raceDay(serial).races.filter((r) => r.no !== 11);
-      expect(undercard.filter((r) => r.fillies)).toHaveLength(1);
+    for (const { races } of yearDays()) {
+      expect(races.filter((r) => r.no !== 11 && r.raceClass !== 'G2' && r.fillies)).toHaveLength(1);
     }
   });
 
-  it('97日で1年、98日目は翌年の1日目', () => {
-    expect(raceDay(97)).toMatchObject({ year: 2026, dayIndex: 96 });
-    expect(raceDay(98)).toMatchObject({ year: 2027, dayIndex: 0, month: 1, day: 4 });
-  });
-
-  it('上のクラスほど能力水準が高い', () => {
-    const day = raceDay(96); // 12/26 ホープフルS（2歳G1）
-    const levels = day.races.map(raceLevel);
-    const maiden = day.races.find((r) => r.raceClass === 'maiden')!;
-    expect(raceLevel(day.races[10])).toBeGreaterThan(raceLevel(maiden));
-    expect(Math.max(...levels)).toBe(raceLevel(day.races[10]));
-  });
-
-  it('開催の出走表は同じ開催日なら同じ', () => {
-    expect(createMeeting(5).races[3].setup).toEqual(createMeeting(5).races[3].setup);
-    expect(createMeeting(1).venue).toBe('中山競馬場');
-    expect(createMeeting(1).races[10].setup.course.direction).toBe('right');
-    expect(createMeeting(9).races[10].setup.course.direction).toBe('left'); // 根岸S（東京）
+  it('回りは東京が左、ほかは右', () => {
+    expect(VENUE_DIRECTION.東京).toBe('left');
+    expect(VENUE_DIRECTION.中山).toBe('right');
   });
 });
 
@@ -120,27 +96,12 @@ describe('標準以外の距離のレース', () => {
   });
 });
 
-describe('近走の数', () => {
-  it('2歳戦以外は4走、新馬戦は0走、2歳戦は1〜4走', () => {
-    for (let serial = 1; serial <= 98; serial += 7) {
-      for (const race of createMeeting(serial).races) {
-        const counts = horseProfiles(race.setup).map((p) => p.recent.length);
-        for (const n of counts) {
-          if (race.raceClass === 'newcomer') expect(n).toBe(0);
-          else if (race.program.age === '2') expect(n >= 1 && n <= 4).toBe(true);
-          else expect(n).toBe(4);
-        }
-      }
-    }
-  });
-});
-
 describe('実在しない距離', () => {
   it('1年分の番組に、その場で実在しない距離（発走地点が資料にない距離）のレースはない', () => {
-    for (let serial = 1; serial <= DAYS_PER_YEAR; serial++) {
-      for (const race of createMeeting(serial).races) {
-        const { course } = race.setup;
-        expect(racePath(course).estimatedStart, `${serial}日目 ${race.no}R ${course.venue}${course.surface}${course.distance}`).toBe(false);
+    for (const { day, races } of yearDays()) {
+      for (const race of races) {
+        const course = { venue: day.venue, surface: race.surface, distance: race.distance, direction: VENUE_DIRECTION[day.venue], condition: 'good' as const };
+        expect(racePath(course).estimatedStart, `${day.month}/${day.day} ${race.no}R ${day.venue}${race.surface}${race.distance}`).toBe(false);
       }
     }
   });

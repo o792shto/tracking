@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { DAYS_PER_YEAR } from '../sim';
 import { getSettingsStore, useGame, useSettings } from '../store';
 import { sfx, unlockAudio } from './sound';
 import { useMeeting } from './useRace';
@@ -80,7 +79,7 @@ export function formatCoins(n: number): string {
   return n.toLocaleString('ja-JP');
 }
 
-/** 全画面共通の見出し：開催名・所持コイン・回収率・画面切替 */
+/** 全画面共通の見出し：今週・所持コイン・回収率・画面切替 */
 export function GameHeader() {
   const meeting = useMeeting();
   const coins = useGame((s) => s.coins);
@@ -94,13 +93,16 @@ export function GameHeader() {
     <header className="game-header">
       <div className="meeting-name">
         <span className="eyebrow">
-          {meeting.year}年{meeting.month}月{meeting.date}日・第{meeting.day}日/{DAYS_PER_YEAR}
+          {meeting.year}年・第{meeting.week}週/{meeting.weeksPerYear}
         </span>
-        <strong>{meeting.venue}</strong>
+        <strong>{meeting.label}</strong>
       </div>
       <nav className="game-nav" aria-label="画面">
         <button type="button" disabled={busy} className={screen === 'top' ? 'on' : ''} onClick={() => go('top')}>
-          開催トップ
+          今週
+        </button>
+        <button type="button" disabled={busy} className={screen === 'data' ? 'on' : ''} onClick={() => go('data')}>
+          データ
         </button>
         <button type="button" disabled={busy} className={screen === 'record' ? 'on' : ''} onClick={() => go('record')}>
           成績

@@ -43,14 +43,9 @@ export function quinellaProbability(p: number[], i: number, j: number): number {
   return (p[i] * p[j]) / (1 - p[i]) + (p[j] * p[i]) / (1 - p[j]);
 }
 
-/** オッズは0.1倍単位（小数第1位まで）に切り捨て、最低1.0倍（元返し）、最高999.9倍。複勝は最低1.1倍 */
-export function roundOdds(x: number, max: number = BETTING.maxOdds): number {
-  return Math.min(max, Math.max(1, Math.floor(x * 10 + 1e-9) / 10));
-}
-
-/** 券種ごとのオッズの上限 */
-function maxOddsOf(type: string): number {
-  return BETTING.maxOddsByType[type] ?? BETTING.maxOdds;
+/** オッズは0.1倍単位（小数第1位まで）に切り捨て、すべての券種で1.1〜99999.9倍 */
+export function roundOdds(x: number): number {
+  return Math.min(BETTING.maxOdds, Math.max(BETTING.minOdds, Math.floor(x * 10 + 1e-9) / 10));
 }
 
 /** 2頭が1・2着（この順）になる確率（Harville） */
@@ -228,8 +223,7 @@ export function oddsBoard(pools: Pools, runners: number): OddsBoard {
   });
   const simple = (type: 'quinella' | 'exacta' | 'trio' | 'trifecta') => {
     const net = sum([...pools[type].values()]) * (1 - BETTING.takeout[type]);
-    const cap = maxOddsOf(type);
-    return new Map([...pools[type]].map(([key, v]) => [key, roundOdds(net / v, cap)]));
+    return new Map([...pools[type]].map(([key, v]) => [key, roundOdds(net / v)]));
   };
   const order = win.map((o, i) => ({ o, i })).sort((a, b) => a.o - b.o || a.i - b.i);
   const popularity = new Array(runners).fill(0);
@@ -254,8 +248,8 @@ function placeOdds(pools: Pools, i: number, othersVotes: number[], k: number): n
   const net = sum(pools.place) * (1 - BETTING.takeout.place);
   const winnersVotes = pools.place[i] + sum(othersVotes);
   const profit = net - winnersVotes;
-  if (profit <= 0) return BETTING.placeMinOdds;
-  return Math.max(BETTING.placeMinOdds, roundOdds(1 + profit / k / pools.place[i]));
+  if (profit <= 0) return BETTING.minOdds;
+  return Math.max(BETTING.minOdds, roundOdds(1 + profit / k / pools.place[i]));
 }
 
 /**
@@ -265,7 +259,7 @@ function placeOdds(pools: Pools, i: number, othersVotes: number[], k: number): n
 function wideOdds(net: number, own: number, othersVotes: number): number {
   const profit = net - own - othersVotes;
   if (profit <= 0) return 1;
-  return roundOdds(1 + profit / 3 / own, maxOddsOf('wide'));
+  return roundOdds(1 + profit / 3 / own);
 }
 
 function wideBoard(pools: Pools, runners: number): Map<string, { min: number; max: number }> {

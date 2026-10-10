@@ -3,28 +3,29 @@ import { isHit, settle } from '../betting';
 import { groupBets } from './betGroups';
 import { useGame } from '../store';
 import { RaceViewer } from './RaceViewer';
-import { useRaceCard, useRaceResult } from './useRace';
+import { settledInfo, useRaceCard, useRaceResult } from './useRace';
 
 /** 観戦：トラッキング画面と「現在の着順なら的中／不的中」 */
 export function Watch() {
   const raceIndex = useGame((s) => s.raceIndex);
   const placed = useGame((s) => s.placed);
   const settleRace = useGame((s) => s.settle);
-  const { meeting, race, market } = useRaceCard(raceIndex);
+  const { race, market } = useRaceCard(raceIndex);
   const result = useRaceResult(raceIndex);
   const highlight = useMemo(() => new Set(placed.flatMap((b) => b.selection)), [placed]);
   const runners = race.setup.entries.length;
   const raceInfo = useMemo(() => ({ name: race.name, grade: race.grade }), [race]);
 
   const finishOrder = result.finish.map((f) => f.number);
-  const toResult = () => settleRace(settle(market, finishOrder), finishOrder, meeting.venue);
+  const popularity = market.boards[market.boards.length - 1].popularity;
+  const toResult = () => settleRace(settle(market, finishOrder), finishOrder, settledInfo(race, popularity));
 
   return (
     <RaceViewer
       result={result}
-      eyebrow={`${meeting.venue} ${race.no}R ${race.grade ? `${race.name}（${race.grade}）` : race.name}`}
+      eyebrow={`${race.venue} ${race.no}R ${race.grade ? `${race.name}（${race.grade}）` : race.name}`}
       highlight={highlight}
-      popularity={market.boards[market.boards.length - 1].popularity}
+      popularity={popularity}
       race={raceInfo}
       renderStatus={(order, finished, variant, judging) => {
         if (placed.length === 0) return null;

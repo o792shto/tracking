@@ -64,6 +64,23 @@ describe('世界', () => {
     }
   }, 60_000);
 
+  test('出馬表の近走は名簿の実際の成績（新馬戦は初出走）', () => {
+    for (const { setup } of setups.slice(0, 40)) {
+      for (const e of setup.entries) expect(e.history!.length).toBeGreaterThan(0);
+    }
+    let w = structuredClone(before);
+    for (let k = 0; k < 22; k++) w = advanceWeek(w, { full: false });
+    let newcomers = 0;
+    for (const card of cards.slice(22, 26)) {
+      for (const r of card.races.filter((x) => x.program.raceClass === 'newcomer' && x.horseIds.length > 0)) {
+        for (const e of raceSetup(w, card, r).entries) expect(e.history).toEqual([]);
+        newcomers++;
+      }
+      w = advanceWeek(w, { full: false });
+    }
+    expect(newcomers).toBeGreaterThan(5);
+  }, 60_000);
+
   test('名簿の頭数が安定している（毎年の2歳と引退がつり合う）', () => {
     const active = (x: World) => x.horses.filter((h) => !h.retired).length;
     expect(active(world)).toBeGreaterThan(1200);

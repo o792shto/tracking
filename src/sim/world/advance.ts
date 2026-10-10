@@ -200,6 +200,15 @@ function afterSummer(world: World, year: number, rng: Rng) {
   }
 }
 
+/** 賞金（万円）の表示（例：「12億3,300万円」「5,285万円」） */
+export function formatPrize(man: number): string {
+  const n = Math.round(man);
+  const oku = Math.floor(n / 10000);
+  const rest = n % 10000;
+  const restText = rest > 0 ? `${rest.toLocaleString('ja-JP')}万` : '';
+  return oku > 0 ? `${oku}億${restText}円` : `${restText || '0万'}円`;
+}
+
 const TIER_LABEL: Record<Tier, string> = { maiden: '未勝利', '1win': '1勝クラス', '2win': '2勝クラス', '3win': '3勝クラス', open: 'オープン' };
 export const tierLabel = (t: Tier) => TIER_LABEL[t];
 
@@ -246,7 +255,7 @@ function awards(world: World, year: number) {
     if (!top) return;
     const g1 = top.wins.filter((g) => g.grade === 'G1').map((g) => g.name);
     const reason = g1.length > 0 ? `G1 ${g1.length}勝（${g1.join('・')}）` : top.wins.length > 0 ? `重賞${top.wins.length}勝` : '';
-    const earnings = `獲得賞金 ${Math.round(top.h.earningsByYear[year] ?? 0).toLocaleString()}万円`;
+    const earnings = `獲得賞金 ${formatPrize(top.h.earningsByYear[year] ?? 0)}`;
     const award: Award = { year, title, horseId: top.h.id, name: top.h.name, reason: [reason, earnings].filter(Boolean).join('、') };
     world.awards.push(award);
     return award;

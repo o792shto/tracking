@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { simulateRace } from './engine';
 import { createRace } from './horse';
-import { createMeeting } from './meeting';
+import { VENUE_DIRECTION, venueDayProgram } from './program';
+import { Rng } from './rng';
+import { RACE_WEEKS } from './world/calendar';
 import { findStart, layoutFor, pathPose, racePath, TRACK_DATA } from './racePath';
 import { OFFICIAL_COURSES } from './venues';
 import { STYLES, type RunningStyle } from './types';
@@ -84,11 +86,14 @@ describe('コースの形のデータ', () => {
 
   it('1年分の番組のどのレースにも道筋がある（資料にない距離は仮の発走地点）', () => {
     const estimated = new Set<string>();
-    for (let serial = 1; serial <= 98; serial++) {
-      for (const race of createMeeting(serial).races) {
-        const path = racePath(race.setup.course);
-        expect(path.pieces.length).toBeGreaterThan(0);
-        if (path.estimatedStart) estimated.add(`${race.setup.course.venue}${race.setup.course.surface}${race.setup.course.distance}`);
+    for (const week of RACE_WEEKS) {
+      for (const day of week.days) {
+        for (const race of venueDayProgram(day, new Rng(week.index))) {
+          const course = { venue: day.venue, surface: race.surface, distance: race.distance, direction: VENUE_DIRECTION[day.venue], condition: 'good' as const };
+          const path = racePath(course);
+          expect(path.pieces.length).toBeGreaterThan(0);
+          if (path.estimatedStart) estimated.add(`${day.venue}${race.surface}${race.distance}`);
+        }
       }
     }
     console.log('仮の発走地点:', [...estimated].sort().join(' '));

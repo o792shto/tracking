@@ -12,17 +12,16 @@ import {
   groupLabel,
   maxAxis,
   methodsFor,
-  settle,
   type Bet,
   type BetMethod,
   type BetType,
   type PickSlots,
 } from '../betting';
-import { CONDITION_LABEL, STYLE_LABEL, SURFACE_LABEL, formatPastRun, simulateRace } from '../sim';
+import { CONDITION_LABEL, SEX_LABEL, STYLE_LABEL, SURFACE_LABEL, formatPastRun } from '../sim';
 import { frameColor } from '../render';
 import { placedTotal, useGame } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
-import { useRaceCard } from './useRace';
+import { runQuietly, useRaceCard } from './useRace';
 import { unlockAudio } from './sound';
 import { groupBets } from './betGroups';
 
@@ -62,7 +61,8 @@ function formatRange(min: number, max: number): string {
 /** 出馬表と馬券購入 */
 export function RaceCard() {
   const raceIndex = useGame((s) => s.raceIndex);
-  const { meeting, race, profiles, market } = useRaceCard(raceIndex);
+  const { race, profiles, market } = useRaceCard(raceIndex);
+  const showHorse = useGame((s) => s.showHorse);
   const placed = useGame((s) => s.placed);
   const buy = useGame((s) => s.buy);
   const cancel = useGame((s) => s.cancel);
@@ -196,9 +196,8 @@ export function RaceCard() {
 
   /** 観戦せずに走らせて、結果画面へ（買った馬券は結果どおりに精算） */
   const resultOnly = () => {
-    const result = simulateRace(race.setup, { record: false });
-    const order = result.finish.map((f) => f.number);
-    settleRace(settle(market, order), order, meeting.venue);
+    const r = runQuietly(race);
+    settleRace(r.payouts, r.finishOrder, r.info);
   };
   const start = () => {
     // 効果音がオンなら、このタップで音を出せる状態にしておく（ブラウザの制限）
@@ -216,7 +215,7 @@ export function RaceCard() {
       <header className="card-head">
         <div>
           <span className="eyebrow">
-            {meeting.venue} {race.no}R
+            {race.month}月{race.date}日 {race.venue} {race.no}R
           </span>
           <h1>
             <GradeBadge grade={race.grade} />
@@ -243,6 +242,7 @@ export function RaceCard() {
                 <th>枠</th>
                 <th>馬番</th>
                 <th className="name-col">馬名</th>
+                <th>性齢</th>
                 <th>脚質</th>
                 <th>近走（新しい順）</th>
                 <th>短評</th>
@@ -282,7 +282,22 @@ export function RaceCard() {
                         {mark && <small className="pick-mark">{mark}</small>}
                       </button>
                     </td>
-                    <td className="name-col">{e.horse.name}</td>
+                    <td className="name-col">
+                      <button
+                        type="button"
+                        className="horse-link"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          showHorse(race.horseIds[i]);
+                        }}
+                      >
+                        {e.horse.name}
+                      </button>
+                    </td>
+                    <td className="sexage-cell">
+                      {e.horse.sex ? SEX_LABEL[e.horse.sex] : ''}
+                      {e.horse.age ?? ''}
+                    </td>
                     <td className="style-cell">{STYLE_LABEL[e.horse.style]}</td>
                     <td className="recent-cell">
                       <span className="recent">

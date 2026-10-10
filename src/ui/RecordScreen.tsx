@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGame } from '../store';
+import { resetEverything } from './useRace';
 import { groupBets } from './betGroups';
 import { formatCoins } from './GameHeader';
 
@@ -8,8 +9,7 @@ export function RecordScreen() {
   const coins = useGame((s) => s.coins);
   const totals = useGame((s) => s.totals);
   const history = useGame((s) => s.history);
-  const redeposits = useGame((s) => s.redeposits);
-  const resetAll = useGame((s) => s.resetAll);
+
   const [confirming, setConfirming] = useState(false);
   const rate = totals.spent > 0 ? `${((totals.returned / totals.spent) * 100).toFixed(1)}%` : '—';
   const hitRate = totals.races > 0 ? `${Math.round((totals.hitRaces / totals.races) * 100)}%` : '—';
@@ -40,10 +40,6 @@ export function RecordScreen() {
             {formatCoins(totals.spent)} / {formatCoins(totals.returned)}
           </dd>
         </div>
-        <div>
-          <dt>再入金</dt>
-          <dd className="small">{redeposits}回</dd>
-        </div>
       </dl>
 
       <h2>購入履歴（新しい順、最大30レース）</h2>
@@ -54,7 +50,7 @@ export function RecordScreen() {
           {history.map((h, i) => (
             <li key={i}>
               <span className="where">
-                {h.venue} {h.raceNo}R
+                {h.venue} {h.raceNo}R{h.raceName && ` ${h.raceName}`}
               </span>
               <span className="tickets">
                 {groupBets(h.tickets, (t) => t.bet).map((g) => (
@@ -76,13 +72,13 @@ export function RecordScreen() {
       <div className="danger-zone">
         {confirming ? (
           <>
-            <span>所持コインと成績をすべて消して最初からやり直します。よろしいですか？</span>
+            <span>所持コイン・成績・馬の名簿をすべて消して、新しい世界で最初からやり直します。よろしいですか？</span>
             <button
               type="button"
               className="danger"
               onClick={() => {
-                resetAll();
                 setConfirming(false);
+                void resetEverything();
               }}
             >
               消して最初から
