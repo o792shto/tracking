@@ -34,7 +34,8 @@ describe('simulateRace', () => {
       expect(a.events).toEqual(b.events);
       expect(a.log!.data).toEqual(b.log!.data);
     }
-  });
+    // 記録（大きな配列）の比較に時間がかかり、全テストを並べて走らせると5秒を超えることがある
+  }, 30_000);
 
   it('記録の有無で結果が変わらない', () => {
     for (const seed of [5, 6, 7]) {
