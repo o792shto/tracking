@@ -17,7 +17,7 @@ export const WORLD = {
   /** 能力値ごとのばらつき（素質のまわり） */
   statSpread: 9,
   /** 1世代の頭数（2歳で入ってくる数） */
-  cohortSize: 480,
+  cohortSize: 600,
 };
 
 const STYLE_WEIGHTS: readonly (readonly [RunningStyle, number])[] = [

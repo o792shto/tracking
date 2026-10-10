@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getSettingsStore, useGame, useSettings } from '../store';
 import { sfx, unlockAudio } from './sound';
-import { useMeeting } from './useRace';
+import { resetEverything, useMeeting } from './useRace';
 
 /** 設定：軽量モードと効果音 */
 function SettingsMenu() {
@@ -9,11 +9,16 @@ function SettingsMenu() {
   const lite = useSettings((s) => s.lite);
   const sound = useSettings((s) => s.sound);
   const commentary = useSettings((s) => s.commentary);
+  const light = useSettings((s) => s.light);
+  const [confirming, setConfirming] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const close = (ev: PointerEvent) => {
-      if (!ref.current?.contains(ev.target as Node)) setOpen(false);
+      if (!ref.current?.contains(ev.target as Node)) {
+        setOpen(false);
+        setConfirming(false);
+      }
     };
     window.addEventListener('pointerdown', close);
     return () => window.removeEventListener('pointerdown', close);
@@ -64,6 +69,38 @@ function SettingsMenu() {
               <small>コース図の下に実況を出します</small>
             </span>
           </label>
+          <label>
+            <input type="checkbox" checked={light} onChange={(ev) => getSettingsStore().getState().setLight(ev.target.checked)} />
+            <span>
+              ライトモード
+              <small>明るい背景で表示します</small>
+            </span>
+          </label>
+          <div className="settings-reset">
+            {confirming ? (
+              <>
+                <p>所持コイン・成績・馬の名簿をすべて消して、新しい世界で最初からやり直します。元に戻せません。</p>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    setConfirming(false);
+                    setOpen(false);
+                    void resetEverything();
+                  }}
+                >
+                  消して最初から
+                </button>
+                <button type="button" onClick={() => setConfirming(false)}>
+                  やめる
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setConfirming(true)}>
+                すべてのデータを消して最初から
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

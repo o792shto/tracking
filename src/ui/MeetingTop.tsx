@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BETTING } from '../betting';
 import { CONDITION_LABEL, SURFACE_LABEL, WEEKDAY_LABEL, type MeetingRace } from '../sim';
-import { useGame } from '../store';
+import { useGame, type Ticket } from '../store';
 import { frameColor } from '../render';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { goNextWeek, runQuietly, skipWeek, useMeeting, useWorldData } from './useRace';
@@ -17,6 +17,8 @@ export function MeetingTop() {
   const go = useGame((s) => s.go);
   const openData = useGame((s) => s.openData);
   const settleRace = useGame((s) => s.settle);
+  const showResult = useGame((s) => s.showResult);
+  const settlements = useGame((s) => s.settlements);
   const [busy, setBusy] = useState(false);
   const done = raceIndex >= meeting.races.length;
 
@@ -99,6 +101,9 @@ export function MeetingTop() {
                     </span>
                   </span>
                   <span className="race-state">
+                    {status === 'done' && settlements[i] && settlements[i].tickets.length > 0 && (
+                      <NetResult tickets={settlements[i].tickets} />
+                    )}
                     {status === 'done' && top3 && (
                       <span className="top3" aria-label={`1着から ${top3.join('、')}番`}>
                         {top3.map((num) => {
@@ -113,6 +118,11 @@ export function MeetingTop() {
                         })}
                       </span>
                     )}
+                    {status === 'done' && settlements[i] && (
+                      <button type="button" className="detail" onClick={() => showResult(i)}>
+                        詳細
+                      </button>
+                    )}
                     {status === 'next' && (
                       <span className="next-actions">
                         <button type="button" className="primary" onClick={() => go('card')}>
@@ -122,7 +132,8 @@ export function MeetingTop() {
                           type="button"
                           onClick={() => {
                             const r = runQuietly(race);
-                            settleRace(r.payouts, r.finishOrder, r.info);
+                            // 結果画面へは行かずに一覧のまま次へ（詳細はあとから見られる）
+                            settleRace(r.payouts, r.finishOrder, r.info, false);
                           }}
                         >
                           結果だけ見る
@@ -147,5 +158,19 @@ export function MeetingTop() {
         </div>
       )}
     </main>
+  );
+}
+
+/** 買った馬券の収支（一覧の右に小さく） */
+function NetResult({ tickets }: { tickets: Ticket[] }) {
+  const spent = tickets.reduce((a, t) => a + t.bet.stake, 0);
+  const returned = tickets.reduce((a, t) => a + t.payout, 0);
+  const net = returned - spent;
+  return (
+    <span className={`net ${returned > 0 ? 'hit' : 'miss'}`}>
+      {returned > 0 ? '的中 ' : ''}
+      {net >= 0 ? '+' : ''}
+      {formatCoins(net)}
+    </span>
   );
 }

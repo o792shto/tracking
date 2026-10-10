@@ -194,10 +194,10 @@ export function RaceCard() {
     setActive(0);
   };
 
-  /** 観戦せずに走らせて、結果画面へ（買った馬券は結果どおりに精算） */
+  /** 観戦せずに走らせて、今週のレース一覧へ戻る（買った馬券は結果どおりに精算。詳細は一覧から） */
   const resultOnly = () => {
     const r = runQuietly(race);
-    settleRace(r.payouts, r.finishOrder, r.info);
+    settleRace(r.payouts, r.finishOrder, r.info, false);
   };
   const start = () => {
     // 効果音がオンなら、このタップで音を出せる状態にしておく（ブラウザの制限）

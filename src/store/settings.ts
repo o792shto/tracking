@@ -12,15 +12,18 @@ export interface Settings {
   sound: boolean;
   /** 実況の字幕（デフォルトはオン） */
   commentary: boolean;
+  /** ライトモード（デフォルトはオフ＝暗い画面） */
+  light: boolean;
 }
 
 export interface SettingsActions {
   setLite: (on: boolean) => void;
   setSound: (on: boolean) => void;
   setCommentary: (on: boolean) => void;
+  setLight: (on: boolean) => void;
 }
 
-const DEFAULTS: Settings = { lite: false, sound: false, commentary: true };
+const DEFAULTS: Settings = { lite: false, sound: false, commentary: true, light: false };
 const KEYS = Object.keys(DEFAULTS) as (keyof Settings)[];
 
 export function createSettingsStore(load = true) {
@@ -32,6 +35,7 @@ export function createSettingsStore(load = true) {
     setLite: (lite) => set({ lite }),
     setSound: (sound) => set({ sound }),
     setCommentary: (commentary) => set({ commentary }),
+    setLight: (light) => set({ light }),
   }));
   store.subscribe((s) => saveJSON(SETTINGS_KEY, Object.fromEntries(KEYS.map((k) => [k, s[k]]))));
   return store;

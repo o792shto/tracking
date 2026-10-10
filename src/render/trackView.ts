@@ -199,7 +199,7 @@ export class TrackView {
     ctx.font = '700 11px "Zen Kaku Gothic New", system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = 'rgba(5, 12, 19, 0.8)';
+    ctx.fillStyle = TRACK_THEME.panel;
     ctx.fillRect(ix + 1, iy + 1, 58, 16);
     ctx.fillStyle = TRACK_THEME.rail;
     ctx.fillText('先頭集団', ix + 6, iy + 3);
@@ -263,7 +263,7 @@ export class TrackView {
       const x = p.x;
       const y = p.y - radius - 12;
       ctx.globalAlpha = Math.min(1, (from + tag.span - t) / 0.5);
-      ctx.fillStyle = 'rgba(5, 12, 19, 0.85)';
+      ctx.fillStyle = TRACK_THEME.panel;
       ctx.strokeStyle = tag.color;
       ctx.lineWidth = 1;
       ctx.beginPath();

@@ -15,12 +15,11 @@ const BIG_RETURN = 50_000;
 const COUNT_MS = 1400;
 
 /** 0 から target まで数を増やしていく（動きを減らす設定ならすぐに target） */
-function useCountUp(target: number, onTick?: () => void): number {
-  const [value, setValue] = useState(() =>
-    target <= 0 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? target : 0,
-  );
+function useCountUp(target: number, onTick?: () => void, animate = true): number {
+  const still = () => !animate || target <= 0 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const [value, setValue] = useState(() => (still() ? target : 0));
   useEffect(() => {
-    if (target <= 0 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    if (still()) {
       setValue(target);
       return;
     }
@@ -47,11 +46,13 @@ function useCountUp(target: number, onTick?: () => void): number {
 
 /** 確定・払い戻し */
 export function ResultScreen() {
-  const settlement = useGame((s) => s.lastSettlement);
+  const viewing = useGame((s) => s.viewing);
+  const fresh = useGame((s) => s.freshResult);
   const raceIndex = useGame((s) => s.raceIndex);
+  const index = viewing ?? Math.max(0, raceIndex - 1);
+  const settlement = useGame((s) => s.settlements[index]);
   const go = useGame((s) => s.go);
   const [advancing, setAdvancing] = useState(false);
-  const index = settlement?.raceIndex ?? Math.max(0, raceIndex - 1);
   const { meeting, race, market } = useRaceCard(index);
   const meetingDone = raceIndex >= meeting.races.length;
   const result = useRaceResult(index);
@@ -59,13 +60,13 @@ export function ResultScreen() {
   const returned = tickets.reduce((a, t) => a + t.payout, 0);
   const big =
     returned >= BIG_RETURN || tickets.some((t) => t.payout > 0 && t.payout >= t.bet.stake * BIG_ODDS);
-  const shown = useCountUp(returned, sfx.coin);
+  const shown = useCountUp(returned, sfx.coin, fresh);
   const counted = shown === returned;
   useEffect(() => {
-    if (returned <= 0) return;
+    if (returned <= 0 || !fresh) return;
     const id = window.setTimeout(() => (big ? sfx.fanfare() : sfx.confirm()), COUNT_MS);
     return () => window.clearTimeout(id);
-  }, [returned, big]);
+  }, [returned, big, fresh]);
 
   if (!settlement) {
     return (

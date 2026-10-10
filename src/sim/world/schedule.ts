@@ -4,6 +4,7 @@ import { VENUE_DIRECTION, dayCondition, mainRaceOf, venueDayProgram, type Progra
 import { Rng, hashSeed } from '../rng';
 import { type Entry, type PastRun, type RaceSetup, type Surface, type TrackCondition } from '../types';
 import { WEEKS_PER_YEAR, weekOf, type RaceWeek } from './calendar';
+import { ABROAD, overseasRacesOf, type OverseasRace } from './overseas';
 import { ageOf, aptitudeFit, currentStats, rating, simHorse } from './horses';
 import type { RunRecord, Tier, World, WorldHorse } from './types';
 
@@ -30,6 +31,8 @@ export interface WeekCard {
   /** 日ごとの馬場状態 */
   conditions: Record<Surface, TrackCondition>[];
   races: CardRace[];
+  /** 海外のレースに遠征する日本馬（top はその週の日本の現役トップの総合力） */
+  abroad: { race: OverseasRace; horseIds: number[]; top: number }[];
 }
 
 /** 年の進み具合（0〜1）。週の番号から */
@@ -49,10 +52,13 @@ const TIER_BELOW: Partial<Record<Tier, Tier>> = { '1win': 'maiden', '2win': '1wi
 
 /** 出走表を作るときの調整値 */
 export const ENTRY = {
-  /** 前走から何週あけるか（最小） */
-  minRest: 3,
-  /** オープン馬の最小間隔（G1 以外） */
-  openRest: 3,
+  /** 前走から何週あけるか（クラスごとの最小）。上のクラスほど間隔をあける */
+  minRest: { maiden: 3, '1win': 3, '2win': 4, '3win': 4, open: 5 } as Record<Tier, number>,
+  /** G1 を走ったあとの最小間隔（次も G1 なら g1ToG1） */
+  afterG1: 6,
+  g1ToG1: 4,
+  /** 1年に走る数の上限（G1 馬・オープン馬・それ以外） */
+  yearCap: { g1Winner: 6, open: 7, other: 9 },
   /** 出走を決めるときの距離・馬場の適性の下限（これより合わない馬は出さない） */
   minFit: -3.5,
   /** 頭数が足りないときに緩める下限 */
@@ -61,8 +67,13 @@ export const ENTRY = {
   minRunners: 5,
   /** G1 を目標にする馬の目安（同世代の上位の総合力との差） */
   g1Margin: 4,
+  /** G1 を目標にする馬は、G1 の何週前までなら前哨戦に出るか（これより近いと出ない） */
+  prepBefore: 4,
+  /** 前哨戦に出るのは、何週以上休んだあと（休み明けの1戦だけ） */
+  prepAfterRest: 8,
+  /** G1 を目標にする目安の期間（週） */
+  g1Horizon: 6,
 };
-
 function ageOk(race: ProgramRace, age: number): boolean {
   switch (race.age) {
     case '2':
@@ -84,6 +95,21 @@ function available(h: WorldHorse, serial: number, minRest: number): boolean {
   if (h.retired) return false;
   if (h.restUntil !== null && serial < h.restUntil) return false;
   return weeksRested(h, serial) >= minRest;
+}
+
+/** 前走からあける週の数。G1 を走ったあとは長めに休む（次も G1 ならやや短く） */
+export function restNeeded(h: WorldHorse, toG1: boolean): number {
+  const base = ENTRY.minRest[h.tier];
+  const last = h.runs[h.runs.length - 1];
+  if (last?.grade === 'G1') return Math.max(base, toG1 ? ENTRY.g1ToG1 : ENTRY.afterG1);
+  return toG1 ? Math.min(base, ENTRY.g1ToG1) : base;
+}
+
+/** その年にあと何走できるか（使い詰めにしない） */
+function underYearCap(h: WorldHorse, year: number): boolean {
+  const n = h.runs.filter((r) => r.year === year).length;
+  const cap = h.graded.some((g) => g.grade === 'G1') ? ENTRY.yearCap.g1Winner : h.tier === 'open' ? ENTRY.yearCap.open : ENTRY.yearCap.other;
+  return n < cap;
 }
 
 /** その週の出走表（番組と出走馬）。同じ週に1頭が出るのは1レースまで */
@@ -115,21 +141,58 @@ export function weekCard(world: World): WeekCard {
   const score = new Map<number, number>();
   for (const h of active) score.set(h.id, rating(currentStats(h, year, progress)));
 
-  // G1 を目標にする馬：同じ年齢の上位にいて、2週以内に向いた G1 がある
-  const g1Ahead = upcomingG1(serial);
+  // G1 を目標にする馬：同じ年齢の上位にいて、数週以内に向いた G1 がある
+  const g1Ahead = upcomingG1(serial, ENTRY.g1Horizon);
   const topByAge = new Map<number, number>();
   for (const h of active) {
     const age = ageOf(h, year);
     const r = score.get(h.id)!;
     topByAge.set(age, Math.max(topByAge.get(age) ?? 0, r));
   }
-  const aimsAtG1 = (h: WorldHorse) => {
+  /** 目標の G1 が何週先か（目標がなければ null） */
+  const g1Target = (h: WorldHorse): number | null => {
     const age = ageOf(h, year);
-    if (score.get(h.id)! < (topByAge.get(age) ?? 0) - ENTRY.g1Margin) return false;
-    return g1Ahead.some((g) => ageOk(g, age) && (!g.fillies || h.sex === 'filly') && aptitudeFit(h, g.surface, g.distance) > -2);
+    if (score.get(h.id)! < (topByAge.get(age) ?? 0) - ENTRY.g1Margin) return null;
+    const hit = g1Ahead.find(
+      ({ race: g }) => ageOk(g, age) && (!g.fillies || h.sex === 'filly') && aptitudeFit(h, g.surface, g.distance) > -2,
+    );
+    return hit ? hit.weeks : null;
+  };
+  /** G1 を目標にする馬は、近すぎる前哨戦には出ない。前哨戦は休み明けの1戦だけ */
+  const skipsForG1 = (h: WorldHorse) => {
+    const k = g1Target(h);
+    if (k === null) return false;
+    return k < ENTRY.prepBefore || weeksRested(h, serial) < ENTRY.prepAfterRest;
   };
 
   const used = new Set<number>();
+
+  // 海外遠征：日本の現役トップに近い馬が、向いたレースにときどき挑戦する（その週は国内に出ない）
+  const abroadRng = rng.fork(77);
+  const older = active.filter((h) => ageOf(h, year) >= 3);
+  // 日本のトップの水準（現役の上位5頭目の総合力。1頭だけ抜けた馬に引っぱられないように）
+  const top = older.map((h) => score.get(h.id)!).sort((a, b) => b - a)[4] ?? 0;
+  const abroad = overseasRacesOf(week.index).map((race) => {
+    const candidates = older
+      .filter(
+        (h) =>
+          !used.has(h.id) &&
+          h.tier === 'open' &&
+          score.get(h.id)! >= top - ABROAD.margin &&
+          aptitudeFit(h, race.surface, race.distance) >= ABROAD.minFit &&
+          available(h, serial, restNeeded(h, true)) &&
+          underYearCap(h, year),
+      )
+      .sort((a, b) => score.get(b.id)! - score.get(a.id)!);
+    const horseIds: number[] = [];
+    for (const h of candidates) {
+      if (horseIds.length >= ABROAD.maxPerRace) break;
+      if (abroadRng.chance(ABROAD.chance)) horseIds.push(h.id);
+    }
+    for (const id of horseIds) used.add(id);
+    return { race, horseIds, top };
+  });
+
   const pickRng = rng.fork(99);
   const order = [...races].sort(
     (a, b) =>
@@ -145,15 +208,15 @@ export function weekCard(world: World): WeekCard {
       !used.has(h.id) && ageOk(p, ageOf(h, year)) && (!p.fillies || h.sex === 'filly');
     let pool: { h: WorldHorse; s: number }[];
     if (graded || p.raceClass === 'open') {
-      const rest = p.raceClass === 'G1' ? ENTRY.minRest : ENTRY.openRest;
       // 2歳の重賞は未勝利馬も出られる。それ以外は1勝以上
       const eligible = (h: WorldHorse, fit: number, loose: boolean) =>
         base(h) &&
-        available(h, serial, rest) &&
+        available(h, serial, restNeeded(h, p.raceClass === 'G1')) &&
+        underYearCap(h, year) &&
         (p.age === '2' ? h.starts > 0 : h.wins > 0) &&
         (loose || h.tier === 'open' || h.tier === '3win' || p.age === '2' || p.age === '3') &&
         fit >= (loose ? ENTRY.looseFit : -2.5) &&
-        (p.raceClass === 'G1' || !aimsAtG1(h));
+        (p.raceClass === 'G1' || !skipsForG1(h));
       const collect = (loose: boolean) =>
         active
           .map((h) => ({ h, fit: aptitudeFit(h, p.surface, p.distance) }))
@@ -170,7 +233,11 @@ export function weekCard(world: World): WeekCard {
     } else {
       const tier = TIER_OF_CLASS[p.raceClass];
       const fits = (h: WorldHorse, fit: number, loose: boolean) => {
-        if (!base(h) || !available(h, serial, ENTRY.minRest) || fit < (loose ? ENTRY.looseFit : ENTRY.minFit)) return false;
+        // 頭数が足りないときは間隔を1週だけ詰め、年間の上限も超えてよい（3週より短くはしない）
+        const rest = loose ? Math.max(3, restNeeded(h, false) - 1) : restNeeded(h, false);
+        if (!base(h) || !available(h, serial, rest) || (!loose && !underYearCap(h, year)) || fit < (loose ? ENTRY.looseFit : ENTRY.minFit)) {
+          return false;
+        }
         if (p.raceClass === 'newcomer') return h.starts === 0;
         // 未勝利戦はデビューした馬が先（頭数が足りなければ未出走の馬も出る）
         if (h.tier === tier) return p.raceClass !== 'maiden' || h.starts > 0 || loose;
@@ -199,17 +266,17 @@ export function weekCard(world: World): WeekCard {
     race.horseIds = pickRng.shuffle(chosen);
     race.program = { ...p, runners: chosen.length };
   }
-  return { serial, year, week, conditions, races };
+  return { serial, year, week, conditions, races, abroad };
 }
 
-/** これから2週以内（今週を含む）の G1 */
-function upcomingG1(serial: number): ProgramRace[] {
-  const out: ProgramRace[] = [];
-  for (let k = 0; k <= 2; k++) {
+/** これから horizon 週以内（今週を含む）の G1 と、何週先か */
+function upcomingG1(serial: number, horizon: number): { race: ProgramRace; weeks: number }[] {
+  const out: { race: ProgramRace; weeks: number }[] = [];
+  for (let k = 0; k <= horizon; k++) {
     const { week } = weekOf(serial + k);
     for (const d of week.days) {
       for (const g of [d.main, d.last]) {
-        if (g?.grade === 'G1') out.push({ no: 11, ...mainRaceOf(g), runners: 18 });
+        if (g?.grade === 'G1') out.push({ race: { no: 11, ...mainRaceOf(g), runners: 18 }, weeks: k });
       }
     }
   }

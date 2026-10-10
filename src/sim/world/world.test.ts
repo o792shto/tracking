@@ -44,7 +44,7 @@ describe('世界', () => {
   test('出走馬は年齢・性別の条件に合い、1週に1レースまで', () => {
     // 週の初めの名簿で確かめる（引退した馬は名簿から消えることがあるので、出走表を作ったときの名簿）
     let w = structuredClone(before);
-    for (const card of cards.slice(0, 12)) {
+    for (const card of cards) {
       const byId = new Map(w.horses.map((h) => [h.id, h]));
       const seen = new Set<number>();
       for (const r of card.races) {
@@ -57,6 +57,8 @@ describe('世界', () => {
           expect(ok, `${r.program.name} ${age}歳`).toBe(true);
           if (r.program.fillies) expect(h.sex).toBe('filly');
           if (r.program.raceClass === 'newcomer') expect(h.starts).toBe(0);
+          // 重賞・オープンを勝った馬（オープン馬）は条件戦に出ない
+          if (!r.grade) expect(h.tier, `${h.name} ${r.program.name}`).not.toBe('open');
           expect(h.retired).toBeNull();
         }
       }
@@ -80,6 +82,19 @@ describe('世界', () => {
     }
     expect(newcomers).toBeGreaterThan(5);
   }, 60_000);
+
+  test('使い詰めにしない：オープン馬は年7走まで、間隔は4週以上', () => {
+    const year = weekOf(before.serial).year;
+    // 年の初めからオープンだった馬
+    const openAtStart = new Set(before.horses.filter((x) => !x.retired && x.tier === 'open').map((x) => x.id));
+    for (const h of world.horses.filter((x) => openAtStart.has(x.id))) {
+      const runs = h.runs.filter((r) => r.year === year);
+      expect(runs.length, h.name).toBeLessThanOrEqual(7);
+      for (let i = 1; i < runs.length; i++) {
+        if (runs[i - 1].grade) expect(runs[i].week - runs[i - 1].week, h.name).toBeGreaterThanOrEqual(4);
+      }
+    }
+  });
 
   test('名簿の頭数が安定している（毎年の2歳と引退がつり合う）', () => {
     const active = (x: World) => x.horses.filter((h) => !h.retired).length;

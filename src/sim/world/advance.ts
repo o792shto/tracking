@@ -1,19 +1,17 @@
 import { simulateRace } from '../engine';
 import { GRADED_RACES_2026, type Grade } from '../gradedRaces';
-import type { RaceClass } from '../program';
+import type { ProgramRace } from '../program';
 import { Rng, hashSeed } from '../rng';
 import type { FinishRecord } from '../types';
 import { FIRST_YEAR, WEEKS_PER_YEAR, weekOf } from './calendar';
-import { WORLD, ageOf, newHorse } from './horses';
+import { WORLD, ageOf, currentStats, newHorse, rating } from './horses';
+import { ABROAD, abroadPower, overseasRank } from './overseas';
 import { quickFinish } from './quick';
-import { raceSetup, weekCard, type CardRace, type WeekCard } from './schedule';
+import { raceSetup, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
 import { RUNS_KEPT, type Award, type NewsItem, type Tier, type World, type WorldHorse } from './types';
 
-/** 1着の賞金（万円）。2着以下は割合 */
-export const PRIZE: Record<RaceClass, number> = {
-  G1: 20000,
-  G2: 6000,
-  G3: 4000,
+/** 条件戦・オープンの1着の賞金（万円） */
+export const PRIZE: Record<'open' | '3win' | '2win' | '1win' | 'maiden' | 'newcomer', number> = {
   open: 2400,
   '3win': 1800,
   '2win': 1500,
@@ -21,9 +19,42 @@ export const PRIZE: Record<RaceClass, number> = {
   maiden: 550,
   newcomer: 700,
 };
-const PRIZE_SHARE = [1, 0.4, 0.25, 0.15, 0.1];
-/** 大きな G1 は賞金を上乗せ */
-const BIG_G1: Record<string, number> = { 日本ダービー: 30000, ジャパンC: 50000, 有馬記念: 50000, '天皇賞・秋': 30000, '天皇賞・春': 30000, 宝塚記念: 30000, 大阪杯: 30000 };
+/** 2着以下は1着賞金に対する割合（2着40%・3着25%・4着15%・5着10%） */
+export const PRIZE_SHARE = [1, 0.4, 0.25, 0.15, 0.1];
+/** G1 で賞金を個別に決めるレース（万円） */
+const G1_PRIZE: Record<string, number> = {
+  ジャパンC: 50000,
+  有馬記念: 50000,
+  日本ダービー: 30000,
+  '天皇賞・春': 30000,
+  '天皇賞・秋': 30000,
+  宝塚記念: 30000,
+  大阪杯: 30000,
+  皐月賞: 20000,
+  菊花賞: 20000,
+};
+
+/**
+ * 1着の賞金（万円。ユーザー指定）。
+ * G3 4000万。G2 は2歳戦4000万・3歳戦5500万・古馬戦7000万。
+ * G1 はジャパンC・有馬記念5億、ダービー・天皇賞・宝塚記念・大阪杯3億、皐月賞・菊花賞2億、
+ * 2歳戦8000万、牝馬限定1億5000万、それ以外（マイル・短距離など）1億8000万
+ */
+export function firstPrize(p: Pick<ProgramRace, 'raceClass' | 'name' | 'age' | 'fillies'>): number {
+  switch (p.raceClass) {
+    case 'G1':
+      if (G1_PRIZE[p.name]) return G1_PRIZE[p.name];
+      if (p.age === '2') return 8000;
+      if (p.fillies) return 15000;
+      return 18000;
+    case 'G2':
+      return p.age === '2' ? 4000 : p.age === '3' ? 5500 : 7000;
+    case 'G3':
+      return 4000;
+    default:
+      return PRIZE[p.raceClass];
+  }
+}
 
 /** 世界の出来事の起こりやすさ */
 export const EVENTS = {
@@ -84,7 +115,7 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
     const raceName = race.grade ? p.name : `${p.age === '2' ? '2歳' : p.age === '3' ? '3歳' : ''}${p.name}`;
     for (const f of finish) {
       const h = byId.get(race.horseIds[f.number - 1])!;
-      const prize = Math.round((race.grade === 'G1' ? (BIG_G1[p.name] ?? PRIZE.G1) : PRIZE[p.raceClass]) * (PRIZE_SHARE[f.rank - 1] ?? 0));
+      const prize = Math.round(firstPrize(p) * (PRIZE_SHARE[f.rank - 1] ?? 0));
       h.starts++;
       if (f.rank === 1) {
         h.wins++;
@@ -131,9 +162,60 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
       });
     }
   }
+  runAbroad(world, card, byId, rng.fork(5));
   world.serial++;
   enterWeek(world);
   return world;
+}
+
+/** 海外のレースの結果を名簿とニュースに残す */
+function runAbroad(world: World, card: WeekCard, byId: Map<number, WorldHorse>, rng: Rng) {
+  const { year, week } = card;
+  const progress = seasonProgress(week.index, WEEKS_PER_YEAR);
+  for (const { race, horseIds, top } of card.abroad) {
+    for (const id of horseIds) {
+      const h = byId.get(id)!;
+      const rank = overseasRank(race, abroadPower(h, rating(currentStats(h, year, progress)), race), top, rng);
+      const prize = Math.round(race.prize * (PRIZE_SHARE[rank - 1] ?? 0));
+      h.starts++;
+      if (rank === 1) {
+        h.wins++;
+        h.graded.push({ year, name: race.name, grade: 'G1' });
+      } else if (rank === 2) h.seconds++;
+      else if (rank === 3) h.thirds++;
+      h.earnings += prize;
+      h.earningsByYear[year] = (h.earningsByYear[year] ?? 0) + prize;
+      h.runs.push({
+        year,
+        week: week.index,
+        month: race.month,
+        day: race.day,
+        venue: race.place,
+        abroad: true,
+        race: race.name,
+        grade: 'G1',
+        raceClass: 'G1',
+        surface: race.surface,
+        distance: race.distance,
+        runners: ABROAD.rivals + horseIds.length,
+        rank,
+        time: 0,
+        margin: '',
+      });
+      if (h.runs.length > RUNS_KEPT) h.runs.splice(0, h.runs.length - RUNS_KEPT);
+      h.lastWeek = world.serial;
+      const title =
+        rank === 1 ? `${h.name}が${race.name}制覇！` : `${race.name}に${h.name}が挑戦し${rank}着`;
+      const body =
+        rank === 1
+          ? `${race.place}の${race.name}（${race.surface === 'turf' ? '芝' : 'ダート'}${race.distance}m）で、${h.name}が世界の強豪を破って優勝しました。`
+          : rank <= 3
+            ? `${race.place}の${race.name}に挑んだ${h.name}は${rank}着。勝利には届きませんでしたが、世界の舞台で見せ場を作りました。`
+            : `${race.place}の${race.name}に挑んだ${h.name}は${rank}着に終わりました。`;
+      news(world, 'abroad', title, body, [h.id]);
+      if (rng.chance(EVENTS.injury)) injure(world, h, rng);
+    }
+  }
 }
 
 function injure(world: World, h: WorldHorse, rng: Rng) {

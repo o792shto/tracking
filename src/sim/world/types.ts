@@ -13,7 +13,10 @@ export interface RunRecord {
   week: number;
   month: number;
   day: number;
-  venue: Venue;
+  /** 競馬場（海外のレースは国・地域の名前） */
+  venue: Venue | string;
+  /** 海外のレース */
+  abroad?: boolean;
   /** レース名（重賞は名前、それ以外は「3歳未勝利」のような条件） */
   race: string;
   grade: Grade | null;
@@ -76,7 +79,7 @@ export interface WorldHorse {
   retired: { serial: number; reason: RetireReason } | null;
 }
 
-export type NewsKind = 'summer' | 'injury' | 'retire' | 'debut' | 'award' | 'record';
+export type NewsKind = 'summer' | 'injury' | 'retire' | 'debut' | 'award' | 'record' | 'abroad';
 
 export interface NewsItem {
   /** 通算の週 */

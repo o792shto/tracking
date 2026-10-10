@@ -58,6 +58,13 @@ interface SaveData {
   history: RaceRecord[];
   /** 週ごとの入金を最後に受け取った週 */
   depositedSerial: number;
+  /** その週に確定したレースの馬券と払い戻し（キーは観戦レースの何番目か。詳細を見るのに使う） */
+  settlements: Record<number, Settlement>;
+}
+
+export interface Settlement {
+  tickets: Ticket[];
+  payouts: Payouts;
 }
 
 /** 確定したレースの情報（成績・名簿に残す） */
@@ -75,8 +82,10 @@ export interface GameState extends SaveData {
   dataTab: DataTab;
   /** 馬の詳細を開いている馬（名簿の id） */
   horseId: number | null;
-  /** 直前に確定したレースの払い戻し（結果画面用） */
-  lastSettlement: { raceIndex: number; tickets: Ticket[]; payouts: Payouts } | null;
+  /** 結果画面で見ているレース（観戦レースの何番目か） */
+  viewing: number | null;
+  /** 確定した直後の結果画面か（払い戻しの演出をする） */
+  freshResult: boolean;
 }
 
 export interface GameActions {
@@ -88,8 +97,12 @@ export interface GameActions {
   /** 発走前なら取り消して返金する */
   /** 発走前なら取り消して返金する。まとめ買いの馬券は同じ買い方の馬券をまとめて取り消す */
   cancel: (index: number) => void;
-  /** レースが確定したら払い戻して次のレースへ進める */
-  settle: (payouts: Payouts, finishOrder: number[], race: SettledRace) => void;
+  /**
+   * レースが確定したら払い戻して次のレースへ進める。show = false（結果だけ見る）なら結果画面へは行かない
+   */
+  settle: (payouts: Payouts, finishOrder: number[], race: SettledRace, show?: boolean) => void;
+  /** 確定したレースの結果（着順・払い戻し）を見る */
+  showResult: (index: number) => void;
   /**
    * 新しい週に入る（名簿の世界が進んだあとに呼ぶ）。その週の進み具合をやり直し、週ごとの入金を受け取る。
    * 残っている馬券は返金する
@@ -113,6 +126,7 @@ function initialData(): SaveData {
     totals: { spent: 0, returned: 0, bestPayout: 0, races: 0, hitRaces: 0 },
     history: [],
     depositedSerial: 0,
+    settlements: {},
   };
 }
 
@@ -150,7 +164,8 @@ export function createGameStore(load = true) {
     screen: 'top',
     dataTab: 'calendar',
     horseId: null,
-    lastSettlement: null,
+    viewing: null,
+    freshResult: false,
 
     go: (screen) => set({ screen }),
     openData: (tab) => set({ screen: 'data', dataTab: tab }),
@@ -183,7 +198,7 @@ export function createGameStore(load = true) {
       set({ coins: coins + refund, placed: placed.filter((b, i) => !same(b, i)) });
     },
 
-    settle: (payouts, finishOrder, race) => {
+    settle: (payouts, finishOrder, race, show = true) => {
       const s = get();
       const tickets = s.placed.map((bet) => ({ bet, payout: payoutFor(bet, payouts) }));
       const spent = placedTotal(s.placed);
@@ -212,10 +227,17 @@ export function createGameStore(load = true) {
           hitRaces: s.totals.hitRaces + (returned > 0 ? 1 : 0),
         },
         history: bought ? [record, ...s.history].slice(0, HISTORY_LIMIT) : s.history,
-        lastSettlement: { raceIndex: s.raceIndex, tickets, payouts },
+        settlements: { ...s.settlements, [s.raceIndex]: { tickets, payouts } },
+        viewing: show ? s.raceIndex : s.viewing,
+        freshResult: show,
         raceIndex: s.raceIndex + 1,
-        screen: 'result',
+        screen: show ? 'result' : 'top',
       });
+    },
+
+    showResult: (index) => {
+      if (!get().settlements[index]) return;
+      set({ viewing: index, freshResult: false, screen: 'result' });
     },
 
     beginWeek: (serial) => {
@@ -227,17 +249,18 @@ export function createGameStore(load = true) {
         raceIndex: s.serial === serial ? s.raceIndex : 0,
         results: s.serial === serial ? s.results : {},
         popularity: s.serial === serial ? s.popularity : {},
+        settlements: s.serial === serial ? s.settlements : {},
         placed: s.serial === serial ? s.placed : [],
         coins: s.coins + (s.serial === serial ? 0 : placedTotal(s.placed)) + weeks * BETTING.weeklyDeposit,
         depositedSerial: Math.max(s.depositedSerial, serial),
-        lastSettlement: s.serial === serial ? s.lastSettlement : null,
+        viewing: s.serial === serial ? s.viewing : null,
         screen: s.serial === serial ? s.screen : 'top',
       });
     },
 
     resetAll: () => {
       removeKey(STORAGE_KEY);
-      set({ ...initialData(), screen: 'top', lastSettlement: null, horseId: null });
+      set({ ...initialData(), screen: 'top', viewing: null, freshResult: false, horseId: null });
     },
   }));
 
@@ -253,6 +276,7 @@ export function createGameStore(load = true) {
       totals: s.totals,
       history: s.history,
       depositedSerial: s.depositedSerial,
+      settlements: s.settlements,
     };
     saveJSON(STORAGE_KEY, save);
   });

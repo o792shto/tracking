@@ -62,6 +62,16 @@ describe('ゲームの状態', () => {
     expect(after.screen).toBe('result');
   });
 
+  it('結果だけ見る（show = false）は結果画面へ行かず、あとから詳細を見られる', () => {
+    const store = createGameStore(false);
+    store.getState().buy({ type: 'win', selection: [3], stake: 1000 });
+    store.getState().settle(payouts, [3, 7, 1], race(), false);
+    expect(store.getState().screen).toBe('top');
+    expect(store.getState().settlements[0].tickets[0].payout).toBe(2500);
+    store.getState().showResult(0);
+    expect(store.getState()).toMatchObject({ screen: 'result', viewing: 0, freshResult: false });
+  });
+
   it('確定したレースの人気を週の記録に残す', () => {
     const store = createGameStore(false);
     store.getState().settle(payouts, [3, 7, 1], race());

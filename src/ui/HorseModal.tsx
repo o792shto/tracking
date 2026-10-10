@@ -94,6 +94,7 @@ export function HorseModal() {
                         <tr key={i} className={r.rank === 1 ? 'won' : ''}>
                           <td className="small">
                             {r.year}/{r.month}/{r.day} {r.venue}
+                            {r.abroad && <span className="tag soft">海外</span>}
                           </td>
                           <td>
                             <GradeBadge grade={r.grade} />
@@ -106,7 +107,7 @@ export function HorseModal() {
                           <td className="num">{r.runners}</td>
                           <td className="num">{r.popularity ?? '—'}</td>
                           <td className="num rank">{r.rank}</td>
-                          <td className="num">{formatTime(r.time)}</td>
+                          <td className="num">{r.time > 0 ? formatTime(r.time) : '—'}</td>
                           <td className="small">{r.margin}</td>
                         </tr>
                       ))}

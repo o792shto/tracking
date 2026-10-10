@@ -18,6 +18,41 @@
   --miss: #7d97ab;
   --plus: #3ddc84;
   --minus: #ff7b7f;
+  --overlay-rgb: 5 12 19;
+  --glow-rgb: 94 240 255;
+  --goal-rgb: 255 209 102;
+  --track-bg: #071019;
+  --on-glow: #031015;
+  --caption-shadow: 0 1px 2px #000;
+  --trouble: #ffb4b6;
+  --keen: #f0b46a;
+}
+/* ライトモード（設定で切り替え）。明るい紙の上に、同じ配置のデータ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #eef2f5;
+  --panel: #ffffff;
+  --line: #c9d5de;
+  --fg: #15222c;
+  --muted: #5b7080;
+  --glow: #00809e;
+  --goal: #a86b00;
+  --lap-fast: #0f8fa3;
+  --lap-slow: #b06a12;
+  --up-bg: rgba(47, 174, 106, 0.22);
+  --down-bg: rgba(229, 72, 77, 0.18);
+  --hit: #1b9a55;
+  --miss: #6b7f8e;
+  --plus: #1b9a55;
+  --minus: #d23a40;
+  --overlay-rgb: 255 255 255;
+  --glow-rgb: 0 128 158;
+  --goal-rgb: 168 107 0;
+  --track-bg: #f6f9fb;
+  --on-glow: #ffffff;
+  --caption-shadow: none;
+  --trouble: #c0353b;
+  --keen: #b26a10;
 }
 html,
 body,
@@ -104,7 +139,7 @@ input:focus-visible {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--glow);
-  text-shadow: 0 0 10px rgba(94, 240, 255, 0.45);
+  text-shadow: 0 0 10px rgb(var(--glow-rgb) / 0.45);
   min-width: 5ch;
   text-align: right;
 }
@@ -130,7 +165,7 @@ input:focus-visible {
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;
-  background: #071019;
+  background: var(--track-bg);
 }
 .stage canvas {
   position: absolute;
@@ -216,11 +251,11 @@ input:focus-visible {
     background-color 0.6s ease-out;
 }
 .standing:hover {
-  background-color: rgba(94, 240, 255, 0.05);
+  background-color: rgb(var(--glow-rgb) / 0.05);
 }
 .standing.active {
   border-left-color: var(--glow);
-  background-color: rgba(94, 240, 255, 0.08);
+  background-color: rgb(var(--glow-rgb) / 0.08);
 }
 .standing.flash-up {
   background-color: var(--up-bg);
@@ -276,9 +311,9 @@ input:focus-visible {
   padding: 6px 18px 8px;
   border: 1px solid var(--goal);
   border-radius: 4px;
-  background: rgba(5, 12, 19, 0.82);
+  background: rgb(var(--overlay-rgb) / 0.82);
   color: var(--goal);
-  box-shadow: 0 0 18px rgba(255, 209, 102, 0.25);
+  box-shadow: 0 0 18px rgb(var(--goal-rgb) / 0.25);
   animation: telop-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
   pointer-events: none;
 }
@@ -373,7 +408,7 @@ input:focus-visible {
 }
 .pace-pill.slow {
   border-color: var(--lap-slow);
-  color: #f0b46a;
+  color: var(--keen);
 }
 .pace-pill.pending {
   color: var(--muted);
@@ -474,7 +509,7 @@ input:focus-visible {
 }
 .controls .seg.on {
   border-color: var(--glow);
-  color: #031015;
+  color: var(--on-glow);
   background: var(--glow);
 }
 .seek {
@@ -645,7 +680,7 @@ h3 {
 }
 .race-item.next {
   border-color: var(--glow);
-  box-shadow: 0 0 0 1px rgba(94, 240, 255, 0.15);
+  box-shadow: 0 0 0 1px rgb(var(--glow-rgb) / 0.15);
 }
 .race-item.later {
   opacity: 0.7;
@@ -756,10 +791,10 @@ h3 {
   cursor: pointer;
 }
 .entry-table tbody tr:hover {
-  background: rgba(94, 240, 255, 0.04);
+  background: rgb(var(--glow-rgb) / 0.04);
 }
 .entry-table tr.selected {
-  background: rgba(94, 240, 255, 0.1);
+  background: rgb(var(--glow-rgb) / 0.1);
 }
 .entry-table .pick {
   min-width: 40px;
@@ -774,7 +809,7 @@ h3 {
 .entry-table .pick[aria-pressed='true'] {
   border-color: var(--glow);
   background: var(--glow);
-  color: #031015;
+  color: var(--on-glow);
 }
 .entry-table .name-col {
   font-weight: 700;
@@ -841,7 +876,7 @@ h3 {
 .seg-group .seg.on {
   background: var(--glow);
   border-color: var(--glow);
-  color: #031015;
+  color: var(--on-glow);
   font-weight: 700;
 }
 .bet-panel .hint {
@@ -1394,7 +1429,7 @@ button.danger {
   gap: 6px;
   margin-inline: -10px;
   padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-  background: rgba(5, 12, 19, 0.94);
+  background: rgb(var(--overlay-rgb) / 0.94);
   border-top: 1px solid var(--line);
   backdrop-filter: blur(6px);
 }
@@ -1468,7 +1503,7 @@ button.danger {
   font-size: min(28vw, 140px);
   font-weight: 700;
   color: var(--goal);
-  text-shadow: 0 0 24px rgba(255, 209, 102, 0.6);
+  text-shadow: 0 0 24px rgb(var(--goal-rgb) / 0.6);
   pointer-events: none;
   animation: count-pop 0.9s ease-out both;
 }
@@ -1509,7 +1544,7 @@ button.danger {
   padding: 3px 10px;
   border: 1px solid var(--glow);
   border-radius: 999px;
-  background: rgba(5, 12, 19, 0.8);
+  background: rgb(var(--overlay-rgb) / 0.8);
   color: var(--glow);
   font-size: 12px;
   font-weight: 700;
@@ -1551,7 +1586,7 @@ button.danger {
   padding: 8px 22px;
   border: 2px solid var(--goal);
   border-radius: 4px;
-  background: rgba(5, 12, 19, 0.88);
+  background: rgb(var(--overlay-rgb) / 0.88);
   color: var(--goal);
   font-size: 26px;
   font-weight: 700;
@@ -1562,7 +1597,7 @@ button.danger {
   position: relative;
   padding: 2px 10px;
   border-radius: 3px;
-  background: rgba(5, 12, 19, 0.8);
+  background: rgb(var(--overlay-rgb) / 0.8);
   color: var(--fg);
   font-size: 12px;
 }
@@ -1578,8 +1613,8 @@ button.danger {
   padding: 8px 16px;
   border: 1px solid var(--goal);
   border-radius: 6px;
-  background: rgba(5, 12, 19, 0.9);
-  box-shadow: 0 0 22px rgba(255, 209, 102, 0.3);
+  background: rgb(var(--overlay-rgb) / 0.9);
+  box-shadow: 0 0 22px rgb(var(--goal-rgb) / 0.3);
   white-space: nowrap;
   pointer-events: none;
   animation: telop-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -1649,7 +1684,7 @@ button.danger {
   cursor: pointer;
 }
 .settings-menu label:hover {
-  background: rgba(94, 240, 255, 0.06);
+  background: rgb(var(--glow-rgb) / 0.06);
 }
 .settings-menu input {
   width: 20px;
@@ -1905,8 +1940,8 @@ button.danger {
 }
 .win-banner.big {
   border-color: var(--goal);
-  background: linear-gradient(100deg, rgba(255, 209, 102, 0.14), rgba(255, 209, 102, 0.04) 60%);
-  box-shadow: 0 0 30px rgba(255, 209, 102, 0.25);
+  background: linear-gradient(100deg, rgb(var(--goal-rgb) / 0.14), rgb(var(--goal-rgb) / 0.04) 60%);
+  box-shadow: 0 0 30px rgb(var(--goal-rgb) / 0.25);
 }
 .win-banner.big .win-title {
   color: var(--goal);
@@ -1915,11 +1950,11 @@ button.danger {
 }
 .win-banner.big.done .win-amount {
   color: var(--goal);
-  text-shadow: 0 0 18px rgba(255, 209, 102, 0.7);
+  text-shadow: 0 0 18px rgb(var(--goal-rgb) / 0.7);
 }
 @keyframes big-pulse {
   50% {
-    text-shadow: 0 0 22px rgba(255, 209, 102, 0.9);
+    text-shadow: 0 0 22px rgb(var(--goal-rgb) / 0.9);
     transform: scale(1.05);
   }
 }
@@ -1930,7 +1965,7 @@ button.danger {
   pointer-events: none;
   background-image:
     radial-gradient(circle, rgba(255, 225, 140, 0.9) 0 1.5px, transparent 2px),
-    radial-gradient(circle, rgba(94, 240, 255, 0.8) 0 1px, transparent 1.5px);
+    radial-gradient(circle, rgb(var(--glow-rgb) / 0.8) 0 1px, transparent 1.5px);
   background-size:
     46px 46px,
     31px 31px;
@@ -1962,13 +1997,13 @@ button.danger {
   right: 0;
   bottom: 0;
   padding: 18px 12px 8px;
-  background: linear-gradient(transparent, rgba(5, 12, 19, 0.92) 40%);
+  background: linear-gradient(transparent, rgb(var(--overlay-rgb) / 0.92) 40%);
   pointer-events: none;
 }
 .caption p {
   margin: 0;
   line-height: 1.45;
-  text-shadow: 0 1px 2px #000;
+  text-shadow: var(--caption-shadow);
 }
 .caption .prev {
   font-size: 12px;
@@ -1985,7 +2020,7 @@ button.danger {
   color: var(--goal);
 }
 .caption .now.trouble {
-  color: #ffb4b6;
+  color: var(--trouble);
 }
 .caption .now.mine {
   color: var(--glow);
@@ -2006,7 +2041,7 @@ button.danger {
   padding: 4px 14px;
   border: 1px solid var(--glow);
   border-radius: 999px;
-  background: rgba(5, 12, 19, 0.85);
+  background: rgb(var(--overlay-rgb) / 0.85);
   color: var(--glow);
   font-size: 13px;
   pointer-events: none;
@@ -2035,7 +2070,7 @@ button.danger {
   padding: 3px 10px 3px 4px;
   border: 1px solid var(--glow);
   border-radius: 999px;
-  background: rgba(5, 12, 19, 0.85);
+  background: rgb(var(--overlay-rgb) / 0.85);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -2143,7 +2178,7 @@ button.result-only {
     gap: 8px;
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--glow);
-    background: rgba(5, 12, 19, 0.96);
+    background: rgb(var(--overlay-rgb) / 0.96);
     box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.45);
   }
   .buy-what {
@@ -2212,7 +2247,7 @@ button.result-only {
     padding: 8px 12px;
     border: 1px solid var(--hit);
     border-radius: 6px;
-    background: rgba(5, 12, 19, 0.95);
+    background: rgb(var(--overlay-rgb) / 0.95);
     font-size: 13px;
     animation: caption-in 0.3s ease-out;
   }
@@ -2349,7 +2384,7 @@ button.link,
   cursor: pointer;
   text-align: left;
   text-decoration: underline;
-  text-decoration-color: rgba(94, 240, 255, 0.35);
+  text-decoration-color: rgb(var(--glow-rgb) / 0.35);
   text-underline-offset: 3px;
 }
 button.link {
@@ -2385,7 +2420,8 @@ button.link {
 .news-list .news.retire {
   border-left-color: var(--minus);
 }
-.news-list .news.award {
+.news-list .news.award,
+.news-list .news.abroad {
   border-left-color: var(--glow);
 }
 .news-list .news span {
@@ -2625,4 +2661,59 @@ button.link {
   .data-tabs .seg {
     font-size: 12px;
   }
+}
+
+.race-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 10px;
+}
+.race-item button.detail {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.net {
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--minus);
+}
+.net.hit {
+  color: var(--plus);
+  font-weight: 700;
+}
+
+.settings-reset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.settings-reset p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--minus);
+  line-height: 1.5;
+}
+.settings-reset button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: pointer;
+  font-size: 12px;
+}
+.settings-reset button.danger {
+  border-color: var(--minus);
+  color: var(--minus);
+}
+.race-desc .grade,
+.cal-name .grade {
+  color: #fff;
+  font-size: 11px;
 }

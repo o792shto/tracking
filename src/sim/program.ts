@@ -90,7 +90,7 @@ export function undercard(month: number): Slot[] {
       // 新馬戦は10月まで（それ以降はほとんどの2歳がデビューしている）
       { raceClass: month <= 10 ? 'newcomer' : 'maiden', surface: 'turf', age: '2' },
       { raceClass: '1win', surface: 'turf', age: '3up' },
-      { raceClass: '2win', surface: 'dirt', age: '3up' },
+      { raceClass: '1win', surface: 'dirt', age: '3up' },
       { raceClass: '2win', surface: 'turf', age: '3up' },
       { raceClass: '3win', surface: 'dirt', age: '3up' },
       { raceClass: '3win', surface: 'turf', age: '3up' },

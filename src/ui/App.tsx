@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { getGameStore, getWorldStore, loadOrCreateWorld, useGame, useWorld } from '../store';
+import { getGameStore, getWorldStore, loadOrCreateWorld, useGame, useSettings, useWorld } from '../store';
+import { setTrackTheme } from '../render';
 import { DataScreen } from './DataScreen';
 import { GameHeader } from './GameHeader';
 import { HorseModal } from './HorseModal';
@@ -26,8 +27,18 @@ const STATUS_TEXT = {
   advancing: '次の週へ進めています…',
 };
 
+/** ライトモード：ページの配色とコース図の配色を切り替える */
+function useTheme() {
+  const light = useSettings((s) => s.light);
+  useEffect(() => {
+    document.documentElement.dataset.theme = light ? 'light' : 'dark';
+    setTrackTheme(light ? 'light' : 'dark');
+  }, [light]);
+}
+
 export function App() {
   useBoot();
+  useTheme();
   const screen = useGame((s) => s.screen);
   const status = useWorld((s) => s.status);
   const hasWorld = useWorld((s) => s.world !== null);

@@ -59,7 +59,7 @@ export async function skipWeek(meeting: Meeting): Promise<void> {
   const race = meeting.races[game.raceIndex];
   if (race && game.placed.length > 0) {
     const r = runQuietly(race);
-    game.settle(r.payouts, r.finishOrder, r.info);
+    game.settle(r.payouts, r.finishOrder, r.info, false);
   }
   await goNextWeek();
 }

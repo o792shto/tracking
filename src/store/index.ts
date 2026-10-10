@@ -10,6 +10,7 @@ export {
   type RaceRecord,
   type Totals,
   type SettledRace,
+  type Settlement,
 } from './game';
 export { useSettings, getSettingsStore, createSettingsStore, type Settings } from './settings';
 export {
