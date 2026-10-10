@@ -3,7 +3,8 @@ import type { Surface } from './types';
 /**
  * 2026年 JRA主要4場（東京・中山・京都・阪神）の平地重賞（ユーザー提供、docs/reference/graded-races-2026.md）。
  * 出典：デイリースポーツ「2026年JRA重賞成績」（2026/10/9時点）。10/10以降は予定で、変更の可能性あり。
- * ゲームではこの98レースを1年の98開催日のメインレース（11R）に使う。
+ * ゲームでは各開催日のメインレース（11R）に使う。同じ日の最終レース（12R）に組む重賞（目黒記念はダービーデーの12R）は
+ * raceNo: 12 とし、開催日には数えない（1年は97日）。
  */
 export type Venue = '東京' | '中山' | '京都' | '阪神';
 export type Grade = 'G1' | 'G2' | 'G3';
@@ -21,6 +22,8 @@ export interface GradedRace {
   age: AgeCondition;
   /** 牝馬限定 */
   fillies: boolean;
+  /** その日の何レース目か。省略時は11R（その日のメインレース） */
+  raceNo?: 12;
   note?: string;
 }
 
@@ -77,7 +80,7 @@ export const GRADED_RACES_2026: readonly GradedRace[] = [
   { month: 5, day: 24, grade: 'G1', name: 'オークス', venue: '東京', surface: 'turf', distance: 2400, age: '3', fillies: true },
   { month: 5, day: 30, grade: 'G3', name: '葵S', venue: '京都', surface: 'turf', distance: 1200, age: '3', fillies: false },
   { month: 5, day: 31, grade: 'G1', name: '日本ダービー', venue: '東京', surface: 'turf', distance: 2400, age: '3', fillies: false },
-  { month: 5, day: 31, grade: 'G2', name: '目黒記念', venue: '東京', surface: 'turf', distance: 2500, age: '4up', fillies: false },
+  { month: 5, day: 31, grade: 'G2', name: '目黒記念', venue: '東京', surface: 'turf', distance: 2500, age: '4up', fillies: false, raceNo: 12, note: 'ダービーデーの最終レース' },
   { month: 6, day: 7, grade: 'G1', name: '安田記念', venue: '東京', surface: 'turf', distance: 1600, age: '3up', fillies: false },
   { month: 6, day: 14, grade: 'G1', name: '宝塚記念', venue: '阪神', surface: 'turf', distance: 2200, age: '3up', fillies: false },
   { month: 6, day: 21, grade: 'G3', name: '府中牝馬S', venue: '東京', surface: 'turf', distance: 1800, age: '3up', fillies: true },

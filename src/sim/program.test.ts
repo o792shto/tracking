@@ -11,9 +11,21 @@ import { lapMarks } from './result';
 const byName = (name: string) => mainRaceOf(GRADED_RACES_2026.find((g) => g.name === name)!);
 
 describe('重賞の置き換え', () => {
-  it('98レースが年間の開催日になる', () => {
+  it('98レースの重賞を97日に組む（目黒記念はダービーデーの12R）', () => {
     expect(GRADED_RACES_2026).toHaveLength(98);
-    expect(DAYS_PER_YEAR).toBe(98);
+    expect(DAYS_PER_YEAR).toBe(97);
+    let derbyDay = null as ReturnType<typeof raceDay> | null;
+    const mains = new Set<string>();
+    for (let serial = 1; serial <= DAYS_PER_YEAR; serial++) {
+      const day = raceDay(serial);
+      mains.add(`${day.month}/${day.day} ${day.venue}`);
+      if (day.races[10].name === '日本ダービー') derbyDay = day;
+      expect(day.races.some((r) => r.name === '目黒記念' && r.no === 11)).toBe(false);
+    }
+    expect(derbyDay).not.toBeNull();
+    expect(derbyDay!.races[11]).toMatchObject({ no: 12, name: '目黒記念', raceClass: 'G2', distance: 2500 });
+    expect(derbyDay!.races.filter((r) => r.fillies && r.no >= 11)).toHaveLength(0);
+    expect(mains.size).toBe(97);
   });
 
   it('2歳戦は G1 以外をオープンにする', () => {
@@ -61,9 +73,10 @@ describe('重賞の置き換え', () => {
 
 describe('1日の番組', () => {
   it('1日12Rで、11Rがその日の重賞。場は重賞の場', () => {
-    for (const serial of [1, 30, 70, 98]) {
+    const mains = GRADED_RACES_2026.filter((g) => g.raceNo === undefined);
+    for (const serial of [1, 30, 70, 97]) {
       const day = raceDay(serial);
-      const g = GRADED_RACES_2026[serial - 1];
+      const g = mains[serial - 1];
       expect(day.races).toHaveLength(12);
       expect(day.races[10]).toMatchObject(mainRaceOf(g));
       expect(day.venue).toBe(g.venue);
@@ -85,13 +98,13 @@ describe('1日の番組', () => {
     }
   });
 
-  it('98日で1年、99日目は翌年の1日目', () => {
-    expect(raceDay(98)).toMatchObject({ year: 2026, dayIndex: 97 });
-    expect(raceDay(99)).toMatchObject({ year: 2027, dayIndex: 0, month: 1, day: 4 });
+  it('97日で1年、98日目は翌年の1日目', () => {
+    expect(raceDay(97)).toMatchObject({ year: 2026, dayIndex: 96 });
+    expect(raceDay(98)).toMatchObject({ year: 2027, dayIndex: 0, month: 1, day: 4 });
   });
 
   it('上のクラスほど能力水準が高い', () => {
-    const day = raceDay(97); // 有馬記念の前日はなし。12/26 ホープフルS（2歳G1）
+    const day = raceDay(96); // 12/26 ホープフルS（2歳G1）
     const levels = day.races.map(raceLevel);
     const maiden = day.races.find((r) => r.raceClass === 'maiden')!;
     expect(raceLevel(day.races[10])).toBeGreaterThan(raceLevel(maiden));

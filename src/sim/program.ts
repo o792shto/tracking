@@ -6,8 +6,17 @@ import { CONDITIONS, DISTANCES_BY_SURFACE, type Direction, type RaceSetup, type 
 
 /** 1日のレース数 */
 export const RACES_PER_DAY = 12;
-/** 1年の開催日数（重賞の数と同じ） */
-export const DAYS_PER_YEAR = GRADED_RACES_2026.length;
+/** 開催日のメインレース（11R）になる重賞。12Rに組む重賞（目黒記念）は同じ日に入れる */
+const MAIN_RACES = GRADED_RACES_2026.filter((g) => g.raceNo === undefined);
+/** 1年の開催日数（メインレースになる重賞の数と同じ） */
+export const DAYS_PER_YEAR = MAIN_RACES.length;
+
+/** その日の12Rに組む重賞（同じ日・同じ競馬場） */
+function lastRaceOf(main: GradedRace): GradedRace | undefined {
+  return GRADED_RACES_2026.find(
+    (g) => g.raceNo === 12 && g.month === main.month && g.day === main.day && g.venue === main.venue,
+  );
+}
 
 /** クラス（条件） */
 export type RaceClass = 'newcomer' | 'maiden' | '1win' | '2win' | '3win' | 'open' | 'G3' | 'G2' | 'G1';
@@ -178,12 +187,13 @@ export interface RaceDay {
   races: ProgramRace[];
 }
 
-/** 通算 serial 日目の開催（98日で1年） */
+/** 通算 serial 日目の開催（97日で1年） */
 export function raceDay(serial: number): RaceDay {
   const n = Math.max(1, Math.floor(serial));
   const dayIndex = (n - 1) % DAYS_PER_YEAR;
   const year = 2026 + Math.floor((n - 1) / DAYS_PER_YEAR);
-  const main = GRADED_RACES_2026[dayIndex];
+  const main = MAIN_RACES[dayIndex];
+  const last = lastRaceOf(main);
   const rng = new Rng(hashSeed(n * 7919 + 17));
   const slots = undercard(main.month);
   // 馬場状態はその日の芝・ダートで共通。雨の日は両方とも悪くなりやすい
@@ -198,10 +208,10 @@ export function raceDay(serial: number): RaceDay {
   const races: ProgramRace[] = [];
   let slotIdx = 0;
   // 牝馬限定の条件戦は1日1レース（メインレース以外から選ぶ）
-  const filliesNo = rng.pick([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
+  const filliesNo = rng.pick(last ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
   for (let no = 1; no <= RACES_PER_DAY; no++) {
-    if (no === 11) {
-      const m = mainRaceOf(main);
+    if (no === 11 || (no === 12 && last)) {
+      const m = mainRaceOf(no === 11 ? main : last!);
       races.push({ no, ...m, runners: rng.int(...RUNNERS[m.raceClass]) });
       continue;
     }

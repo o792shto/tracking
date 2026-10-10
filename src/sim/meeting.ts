@@ -35,7 +35,7 @@ export interface Meeting {
   /** 通算の開催日（1始まり） */
   seed: number;
   year: number;
-  /** その年の何日目か（1始まり、全98日） */
+  /** その年の何日目か（1始まり、全97日） */
   day: number;
   month: number;
   date: number;
@@ -44,7 +44,7 @@ export interface Meeting {
   races: MeetingRace[];
 }
 
-/** 通算 serial 日目の開催（1年98日、1日12R、11Rが重賞） */
+/** 通算 serial 日目の開催（1年97日、1日12R、11Rが重賞。ダービーデーは12Rも重賞） */
 export function createMeeting(serial: number): Meeting {
   const day = raceDay(serial);
   const races = day.races.map((program): MeetingRace => {

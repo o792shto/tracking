@@ -31,7 +31,7 @@
 
 ## 番組
 
-- 年間の重賞98レースは `src/sim/gradedRaces.ts`（元資料は `docs/reference/graded-races-2026.md`）
+- 年間の重賞98レースは `src/sim/gradedRaces.ts`（元資料は `docs/reference/graded-races-2026.md`）。目黒記念はダービーデーの12Rなので、開催日は97日
 - 1日12Rの番組・重賞の置き換えルール・クラスごとの能力水準は `src/sim/program.ts`
 - 競馬場のコースの形は `src/sim/racePath.ts`。データ `src/sim/trackData.ts` は `node scripts/import-tracks.mjs` で `docs/reference/jra-tracks/courses_geometry.json`（ユーザー提供の推定モデル。仕様は同じフォルダの `jra_track_spec.md`）から生成する。手で直さない。公式値との照合は `src/sim/venues.ts` と `src/sim/venues.test.ts`
 

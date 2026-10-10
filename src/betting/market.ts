@@ -43,7 +43,7 @@ export function quinellaProbability(p: number[], i: number, j: number): number {
   return (p[i] * p[j]) / (1 - p[i]) + (p[j] * p[i]) / (1 - p[j]);
 }
 
-/** オッズは0.1倍単位に切り捨て、最低1.0倍（元返し）、最高999.9倍 */
+/** オッズは0.1倍単位（小数第1位まで）に切り捨て、最低1.0倍（元返し）、最高999.9倍。複勝は最低1.1倍 */
 export function roundOdds(x: number): number {
   return Math.min(BETTING.maxOdds, Math.max(1, Math.floor(x * 10 + 1e-9) / 10));
 }
@@ -156,8 +156,8 @@ function placeOdds(pools: Pools, i: number, othersVotes: number[], k: number): n
   const net = sum(pools.place) * (1 - BETTING.takeout.place);
   const winnersVotes = pools.place[i] + sum(othersVotes);
   const profit = net - winnersVotes;
-  if (profit <= 0) return 1;
-  return roundOdds(1 + profit / k / pools.place[i]);
+  if (profit <= 0) return BETTING.placeMinOdds;
+  return Math.max(BETTING.placeMinOdds, roundOdds(1 + profit / k / pools.place[i]));
 }
 
 /** 確定した着順での複勝オッズ（placed は複勝圏内の馬番） */
