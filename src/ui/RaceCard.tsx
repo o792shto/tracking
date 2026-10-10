@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   BETTING,
+  BET_METHOD_LABEL,
+  BET_TYPES,
   BET_TYPE_LABEL,
+  BET_TYPE_ORDERED,
   BET_TYPE_PICKS,
-  expectedReturn,
-  quinellaKey,
+  EMPTY_SLOTS,
+  currentOdds,
+  expandSelections,
+  groupLabel,
+  maxAxis,
+  methodsFor,
   settle,
   type Bet,
+  type BetMethod,
   type BetType,
+  type PickSlots,
 } from '../betting';
 import { CONDITION_LABEL, STYLE_LABEL, SURFACE_LABEL, formatPastRun, simulateRace } from '../sim';
 import { frameColor } from '../render';
@@ -15,10 +24,36 @@ import { placedTotal, useGame } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { useRaceCard } from './useRace';
 import { unlockAudio } from './sound';
+import { groupBets } from './betGroups';
 
 /** 発走前のオッズ表示が切り替わる間隔（ms） */
 const BOARD_INTERVAL = 3500;
-const BET_TYPES: BetType[] = ['win', 'place', 'quinella'];
+/** まとめ買いの点数がこれを超えたら注意を出す */
+const MANY_POINTS = 300;
+
+/** 券種と買い方ごとの説明 */
+function hintFor(type: BetType, method: BetMethod, runners: number): string {
+  const k = BET_TYPE_PICKS[type];
+  const ordered = BET_TYPE_ORDERED[type];
+  const what: Record<BetType, string> = {
+    win: '1着になる馬を当てます。',
+    place: `${runners <= 7 ? '2' : '3'}着以内に入る馬を当てます。`,
+    quinella: '1・2着の2頭を当てます（順不同）。',
+    wide: '3着以内に入る2頭を当てます（順不同）。',
+    exacta: '1・2着の2頭を着順どおりに当てます。',
+    trio: '1〜3着の3頭を当てます（順不同）。',
+    trifecta: '1〜3着の3頭を着順どおりに当てます。',
+  };
+  const how: Record<BetMethod, string> = {
+    single: ordered ? `${k}頭を着順の順にタップします。` : `${k}頭をタップします。`,
+    box: `${k}頭以上を選ぶと、その中のすべての${ordered ? '並び' : '組み合わせ'}を買います。`,
+    nagashi: ordered
+      ? `軸（${maxAxis(type) === 2 ? '1着、2頭なら1・2着' : '1着'}）と相手を選びます。`
+      : `軸（${maxAxis(type) === 2 ? '1〜2頭' : '1頭'}）と相手を選びます。軸は必ず入る組み合わせを買います。`,
+    formation: ordered ? '着順ごとに候補を選びます。' : `${k}つの列ごとに候補を選びます。`,
+  };
+  return what[type] + how[method];
+}
 
 function formatRange(min: number, max: number): string {
   return min === max ? formatCoins(Math.floor(min)) : `${formatCoins(Math.floor(min))}〜${formatCoins(Math.floor(max))}`;
@@ -37,7 +72,10 @@ export function RaceCard() {
 
   const [board, setBoard] = useState(0);
   const [type, setType] = useState<BetType>('win');
-  const [selection, setSelection] = useState<number[]>([]);
+  const [method, setMethod] = useState<BetMethod>('single');
+  const [slots, setSlots] = useState<PickSlots>(EMPTY_SLOTS);
+  /** 流しは 0=軸・1=相手、フォーメーションは何列目を選んでいるか */
+  const [active, setActive] = useState(0);
   const [stake, setStake] = useState(100);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -67,35 +105,93 @@ export function RaceCard() {
   const final = board === market.boards.length - 1;
   const { course, entries } = race.setup;
   const picks = BET_TYPE_PICKS[type];
+  const ordered = BET_TYPE_ORDERED[type];
   const total = placedTotal(placed);
 
+  const toggleIn = (list: number[], num: number, limit = Infinity) => {
+    if (list.includes(num)) return list.filter((n) => n !== num);
+    const next = [...list, num];
+    return next.length > limit ? next.slice(next.length - limit) : next;
+  };
   const toggle = (num: number) => {
     setMessage(null);
-    setSelection((sel) => {
-      if (sel.includes(num)) return sel.filter((n) => n !== num);
-      const next = [...sel, num];
-      return next.length > picks ? next.slice(next.length - picks) : next;
+    setSlots((sl) => {
+      switch (method) {
+        case 'single':
+          return { ...sl, picks: toggleIn(sl.picks, num, picks) };
+        case 'box':
+          return { ...sl, picks: toggleIn(sl.picks, num) };
+        case 'nagashi':
+          return active === 0
+            ? { ...sl, axis: toggleIn(sl.axis, num, maxAxis(type)), partners: sl.partners.filter((n) => n !== num) }
+            : { ...sl, partners: toggleIn(sl.partners, num), axis: sl.axis.filter((n) => n !== num) };
+        case 'formation':
+          return { ...sl, columns: sl.columns.map((c, i) => (i === active ? toggleIn(c, num) : c)) };
+      }
     });
   };
   const changeType = (t: BetType) => {
     setType(t);
-    setSelection((sel) => sel.slice(-BET_TYPE_PICKS[t]));
+    if (!methodsFor(t).includes(method)) setMethod('single');
+    setSlots((sl) => ({ ...sl, picks: sl.picks.slice(-BET_TYPE_PICKS[t]) }));
+    setActive(0);
+    setMessage(null);
+  };
+  const changeMethod = (m: BetMethod) => {
+    setMethod(m);
+    setActive(0);
+    setSlots((sl) => ({ ...EMPTY_SLOTS, picks: m === 'single' ? sl.picks.slice(-picks) : m === 'box' ? sl.picks : [] }));
     setMessage(null);
   };
 
-  const ready = selection.length === picks;
-  const draft: Bet | null = ready ? { type, selection: [...selection].sort((a, b) => a - b), stake } : null;
-  const preview = draft ? expectedReturn(draft, market, board) : null;
+  /** 出馬表の馬番に付ける印（選ばれていなければ null） */
+  const markOf = (num: number): string | null => {
+    switch (method) {
+      case 'single': {
+        const i = slots.picks.indexOf(num);
+        return i < 0 ? null : ordered ? `${i + 1}着` : '';
+      }
+      case 'box':
+        return slots.picks.includes(num) ? '' : null;
+      case 'nagashi':
+        return slots.axis.includes(num) ? '軸' : slots.partners.includes(num) ? '相手' : null;
+      case 'formation': {
+        const cols = slots.columns.slice(0, picks).flatMap((c, i) => (c.includes(num) ? [i + 1] : []));
+        return cols.length ? cols.join('・') : null;
+      }
+    }
+  };
+
+  const selections = expandSelections(type, method, slots);
+  const points = selections.length;
+  const anySelected = slots.picks.length + slots.axis.length + slots.partners.length + slots.columns.flat().length > 0;
+  // 想定配当（1点あたり）の幅
+  let previewMin = Infinity;
+  let previewMax = 0;
+  for (const sel of selections) {
+    const o = currentOdds({ type, selection: sel }, market, board);
+    previewMin = Math.min(previewMin, o.min);
+    previewMax = Math.max(previewMax, o.max);
+  }
+  const preview = points ? { min: previewMin * stake, max: previewMax * stake } : null;
+  const slotLabels = method === 'nagashi' ? ['軸', '相手'] : Array.from({ length: picks }, (_, i) => (ordered ? `${i + 1}着` : `${i + 1}頭目`));
 
   const submit = () => {
-    if (!draft) return;
-    const error = buy(draft);
+    if (points === 0) return;
+    const group =
+      method === 'single'
+        ? undefined
+        : { id: Math.max(0, ...placed.map((b) => b.group?.id ?? 0)) + 1, method, label: groupLabel(type, method, slots) };
+    const bets: Bet[] = selections.map((selection) => ({ type, selection, stake, group }));
+    const error = buy(bets);
     if (error) {
       setMessage(error);
       return;
     }
-    setMessage(`${BET_TYPE_LABEL[draft.type]} ${draft.selection.join('-')} を ${formatCoins(draft.stake)}コイン購入しました`);
-    setSelection([]);
+    const label = group ? group.label : `${BET_TYPE_LABEL[type]} ${selections[0].join(ordered ? '→' : '-')}`;
+    setMessage(`${label}（${points}点）を ${formatCoins(points * stake)}コイン購入しました`);
+    setSlots(EMPTY_SLOTS);
+    setActive(0);
   };
 
   /** 観戦せずに走らせて、結果画面へ（買った馬券は結果どおりに精算） */
@@ -111,12 +207,8 @@ export function RaceCard() {
   };
 
   const ticketOdds = (bet: Bet) => {
-    if (bet.type === 'win') return `${odds.win[bet.selection[0] - 1].toFixed(1)}倍`;
-    if (bet.type === 'place') {
-      const r = odds.place[bet.selection[0] - 1];
-      return `${r.min.toFixed(1)}〜${r.max.toFixed(1)}倍`;
-    }
-    return `${odds.quinella.get(quinellaKey(bet.selection[0], bet.selection[1]))!.toFixed(1)}倍`;
+    const o = currentOdds(bet, market, board);
+    return o.min === o.max ? `${o.min.toFixed(1)}倍` : `${o.min.toFixed(1)}〜${o.max.toFixed(1)}倍`;
   };
 
   return (
@@ -162,7 +254,8 @@ export function RaceCard() {
               {entries.map((e, i) => {
                 const c = frameColor(e.frame);
                 const profile = profiles[i];
-                const selected = selection.includes(e.number);
+                const mark = markOf(e.number);
+                const selected = mark !== null;
                 return (
                   <tr
                     key={e.number}
@@ -186,6 +279,7 @@ export function RaceCard() {
                         }}
                       >
                         {e.number}
+                        {mark && <small className="pick-mark">{mark}</small>}
                       </button>
                     </td>
                     <td className="name-col">{e.horse.name}</td>
@@ -213,7 +307,7 @@ export function RaceCard() {
 
         <aside className="bet-panel" aria-label="馬券購入" ref={panelRef}>
           <h2>馬券を買う</h2>
-          <div className="seg-group" role="group" aria-label="券種">
+          <div className="seg-group bet-types" role="group" aria-label="券種">
             {BET_TYPES.map((t) => (
               <button
                 key={t}
@@ -226,18 +320,50 @@ export function RaceCard() {
               </button>
             ))}
           </div>
-          <p className="hint">
-            {type === 'win' && '1着になる馬を1頭選びます。'}
-            {type === 'place' && `${entries.length <= 7 ? '2' : '3'}着以内に入る馬を1頭選びます。`}
-            {type === 'quinella' && '1・2着になる2頭を選びます（順不同）。'}
-            出馬表の馬番をタップしてください。
-          </p>
+          {methodsFor(type).length > 1 && (
+            <div className="seg-group bet-methods" role="group" aria-label="買い方">
+              {methodsFor(type).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={method === m ? 'seg on' : 'seg'}
+                  aria-pressed={method === m}
+                  onClick={() => changeMethod(m)}
+                >
+                  {BET_METHOD_LABEL[m]}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="hint">{hintFor(type, method, entries.length)}出馬表の馬番をタップしてください。</p>
+          {(method === 'nagashi' || method === 'formation') && (
+            <div className="slot-tabs" role="group" aria-label="選ぶ欄">
+              {slotLabels.map((label, i) => (
+                <button key={label} type="button" className={active === i ? 'on' : ''} aria-pressed={active === i} onClick={() => setActive(i)}>
+                  {label}を選ぶ
+                </button>
+              ))}
+            </div>
+          )}
           <div className="selection" aria-live="polite">
-            選択：{selection.length ? [...selection].sort((a, b) => a - b).join(' - ') : 'なし'}
+            {method === 'single' && <>選択：{slots.picks.length ? slots.picks.join(ordered ? ' → ' : ' - ') : 'なし'}</>}
+            {method === 'box' && <>選択：{slots.picks.length ? [...slots.picks].sort((x, y) => x - y).join('・') : 'なし'}</>}
+            {method === 'nagashi' && (
+              <>
+                <div>軸：{slots.axis.length ? slots.axis.join(ordered ? ' → ' : '・') : 'なし'}</div>
+                <div>相手：{slots.partners.length ? [...slots.partners].sort((x, y) => x - y).join('・') : 'なし'}</div>
+              </>
+            )}
+            {method === 'formation' &&
+              slotLabels.map((label, i) => (
+                <div key={label}>
+                  {label}：{slots.columns[i].length ? [...slots.columns[i]].sort((x, y) => x - y).join('・') : 'なし'}
+                </div>
+              ))}
           </div>
 
           <label className="stake" htmlFor="stake">
-            金額（{BETTING.unit}コイン単位）
+            1点あたりの金額（{BETTING.unit}コイン単位）
           </label>
           <div className="stake-row">
             <button type="button" onClick={() => setStake((s) => Math.max(BETTING.unit, s - BETTING.unit))} aria-label="100減らす">
@@ -260,18 +386,19 @@ export function RaceCard() {
           <dl className="preview">
             <div>
               <dt>点数</dt>
-              <dd>{ready ? 1 : 0}点</dd>
+              <dd>{points}点</dd>
             </div>
             <div>
-              <dt>金額</dt>
-              <dd>{formatCoins(ready ? stake : 0)}</dd>
+              <dt>合計</dt>
+              <dd>{formatCoins(points * stake)}</dd>
             </div>
             <div>
-              <dt>想定配当</dt>
+              <dt>想定配当（1点）</dt>
               <dd>{preview ? formatRange(preview.min, preview.max) : '—'}</dd>
             </div>
           </dl>
-          <button type="button" className="primary wide" disabled={!ready} onClick={submit}>
+          {points > MANY_POINTS && <p className="muted small">点数が多くなっています（{points}点）。</p>}
+          <button type="button" className="primary wide" disabled={points === 0} onClick={submit}>
             購入する
           </button>
           {message && (
@@ -287,13 +414,12 @@ export function RaceCard() {
             <p className="muted">まだありません。</p>
           ) : (
             <ul className="slip">
-              {placed.map((bet, i) => (
-                <li key={i}>
-                  <span className="bet-type">{BET_TYPE_LABEL[bet.type]}</span>
-                  <span className="bet-sel">{bet.selection.join('-')}</span>
-                  <span className="bet-odds">{ticketOdds(bet)}</span>
-                  <span className="bet-stake">{formatCoins(bet.stake)}</span>
-                  <button type="button" className="cancel" onClick={() => cancel(i)} aria-label="取り消す">
+              {groupBets(placed, (b) => b).map((g) => (
+                <li key={g.key}>
+                  <span className="bet-sel">{g.label}</span>
+                  <span className="bet-odds">{g.grouped ? `${g.items.length}点` : ticketOdds(g.items[0])}</span>
+                  <span className="bet-stake">{formatCoins(placedTotal(g.items))}</span>
+                  <button type="button" className="cancel" onClick={() => cancel(g.firstIndex)} aria-label="取り消す">
                     取消
                   </button>
                 </li>
@@ -312,14 +438,17 @@ export function RaceCard() {
       </div>
 
       {/* スマホ：馬を選んだら画面下に購入バー（出馬表の下まで戻らなくても買える） */}
-      {(selection.length > 0 || placed.length > 0) && (
+      {(anySelected || placed.length > 0) && (
         <div className="buy-bar" role="region" aria-label="購入">
-          {selection.length > 0 ? (
+          {anySelected ? (
             <>
               <div className="buy-what">
-                <span className="buy-type">{BET_TYPE_LABEL[type]}</span>
-                <b>{[...selection].sort((a, b) => a - b).join('-')}</b>
-                {!ready && <small>あと{picks - selection.length}頭</small>}
+                <span className="buy-type">
+                  {BET_TYPE_LABEL[type]}
+                  {method !== 'single' && ` ${BET_METHOD_LABEL[method]}`}
+                </span>
+                <b>{points}点</b>
+                <small>{formatCoins(points * stake)}コイン</small>
                 {preview && <small>想定 {formatRange(preview.min, preview.max)}</small>}
               </div>
               <div className="buy-stake">
@@ -331,7 +460,7 @@ export function RaceCard() {
                   ＋
                 </button>
               </div>
-              <button type="button" className="primary" disabled={!ready} onClick={submit}>
+              <button type="button" className="primary" disabled={points === 0} onClick={submit}>
                 購入
               </button>
               <button type="button" className="buy-more" onClick={() => panelRef.current?.scrollIntoView({ behavior: 'smooth' })}>

@@ -1,7 +1,7 @@
 /** 馬券とオッズの調整用パラメータ（ゲーム内の設定値） */
 export const BETTING = {
-  /** 控除率 */
-  takeout: { win: 0.2, place: 0.2, quinella: 0.225 },
+  /** 控除率（JRAの控除率に合わせた） */
+  takeout: { win: 0.2, place: 0.2, quinella: 0.225, wide: 0.225, exacta: 0.25, trio: 0.25, trifecta: 0.275 },
   /** 見た目の強さ（m/s 換算）から勝率を出すソフトマックスの温度。シミュレーション結果に合わせて決めた */
   strengthTemperature: 0.11,
   /** 大衆の偏り：勝率の何乗に比例して票が入るか（1より大きいと人気馬に票が寄る） */
@@ -10,8 +10,14 @@ export const BETTING = {
   recentFormBias: 0.35,
   /** 票のうち、全馬に均等に入る割合（記念買い・穴狙い）。人気薄のオッズの上限の目安になる */
   longshotFloor: 0.06,
-  /** オッズの上限（表示・払い戻しとも） */
+  /** オッズの上限（表示・払い戻しとも）。組み合わせの多い3連複・3連単は高配当が出るよう上限を上げる */
   maxOdds: 999.9,
+  maxOddsByType: { trio: 9999.9, trifecta: 99999.9 } as Partial<Record<string, number>>,
+  /**
+   * 組み合わせの券種の、全組み合わせに均等に入る票の割合（記念買い・穴狙い）。
+   * 組み合わせが多いほど1点あたりは薄くなる
+   */
+  comboFloor: { quinella: 0.06, wide: 0.06, exacta: 0.05, trio: 0.04, trifecta: 0.03 },
   /** 複勝オッズの下限（単勝・馬連は1.0倍まで） */
   placeMinOdds: 1.1,
   /** 確定時の票のばらつき（対数正規の標準偏差） */
@@ -20,7 +26,15 @@ export const BETTING = {
   boardSteps: 4,
   earlyNoise: 0.25,
   /** 票の総額（1頭あたり、コイン）。払い戻しの端数に影響するだけ */
-  poolPerRunner: { win: 8_000_000, place: 5_000_000, quinella: 12_000_000 },
+  poolPerRunner: {
+    win: 8_000_000,
+    place: 5_000_000,
+    quinella: 12_000_000,
+    wide: 6_000_000,
+    exacta: 10_000_000,
+    trio: 15_000_000,
+    trifecta: 30_000_000,
+  },
   /** 初期コイン */
   initialCoins: 10_000,
   /** 所持コインが尽きたとき（購入の単位未満）に再入金できる額 */

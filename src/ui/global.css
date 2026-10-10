@@ -916,7 +916,7 @@ h3 {
 }
 .slip li {
   display: grid;
-  grid-template-columns: 3em minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
@@ -2223,4 +2223,64 @@ button.result-only {
     grid-column: 1 / -1;
     justify-self: end;
   }
+}
+
+/* ===== 券種・買い方（段階7） ===== */
+.seg-group.bet-types,
+.seg-group.bet-methods {
+  grid-template-columns: repeat(4, 1fr);
+}
+.seg-group.bet-methods .seg {
+  font-size: 12px;
+}
+.slot-tabs {
+  display: flex;
+  gap: 4px;
+}
+.slot-tabs button {
+  flex: 1;
+  min-height: 40px;
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.slot-tabs button.on {
+  border-style: solid;
+  border-color: var(--goal);
+  color: var(--goal);
+  font-weight: 700;
+}
+.selection div {
+  font-size: 14px;
+}
+.entry-table .pick {
+  position: relative;
+}
+.pick-mark {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  font-size: 9px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.slip .bet-sel small {
+  margin-left: 4px;
+}
+@media (pointer: coarse) {
+  .slot-tabs button {
+    min-height: 44px;
+  }
+  .pick-mark {
+    font-size: 12px;
+  }
+}
+
+/* 買い目の表示は券種と馬番を1つの欄にまとめた（長いまとめ買いの表示は折り返す） */
+.slip .bet-sel {
+  overflow-wrap: anywhere;
+  line-height: 1.4;
 }

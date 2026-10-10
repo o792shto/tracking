@@ -6,9 +6,10 @@ import { useGame } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { sfx } from './sound';
 import { useRaceCard, useRaceResult } from './useRace';
+import { groupBets } from './betGroups';
 
-/** 高配当：1枚の払い戻しが賭け金のこの倍率以上、または払い戻しの合計がこれ以上 */
-const BIG_ODDS = 50;
+/** 高配当：1枚の払い戻しが賭け金のこの倍率以上（万馬券）、または払い戻しの合計がこれ以上 */
+const BIG_ODDS = 100;
 const BIG_RETURN = 50_000;
 /** 払い戻しのカウントアップにかける時間（ms） */
 const COUNT_MS = 1400;
@@ -177,6 +178,31 @@ export function ResultScreen() {
                   <b>{per100(payouts.quinella.odds)}</b>
                 </dd>
               </div>
+              {payouts.wide && (
+                <div>
+                  <dt>ワイド</dt>
+                  <dd className="multi">
+                    {payouts.wide.map((w) => (
+                      <span key={w.key}>
+                        <span>{w.key}</span>
+                        <b>{per100(w.odds)}</b>
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              )}
+              {(['exacta', 'trio', 'trifecta'] as const).map(
+                (t) =>
+                  payouts[t] && (
+                    <div key={t}>
+                      <dt>{BET_TYPE_LABEL[t]}</dt>
+                      <dd>
+                        <span>{payouts[t].key.replace(/>/g, '→')}</span>
+                        <b>{per100(payouts[t].odds)}</b>
+                      </dd>
+                    </div>
+                  ),
+              )}
             </dl>
           </section>
 
@@ -187,14 +213,20 @@ export function ResultScreen() {
             ) : (
               <>
                 <ul className="slip">
-                  {tickets.map((t, i) => (
-                    <li key={i} className={t.payout > 0 ? 'hit' : 'miss'}>
-                      <span className="bet-type">{BET_TYPE_LABEL[t.bet.type]}</span>
-                      <span className="bet-sel">{t.bet.selection.join('-')}</span>
-                      <span className="bet-stake">{formatCoins(t.bet.stake)}</span>
-                      <span className="bet-payout">{t.payout > 0 ? `+${formatCoins(t.payout)}` : '不的中'}</span>
-                    </li>
-                  ))}
+                  {groupBets(tickets, (t) => t.bet).map((g) => {
+                    const won = g.items.reduce((a, t) => a + t.payout, 0);
+                    const hitsIn = g.items.filter((t) => t.payout > 0).length;
+                    return (
+                      <li key={g.key} className={won > 0 ? 'hit' : 'miss'}>
+                        <span className="bet-sel">
+                          {g.label}
+                          {g.grouped && <small className="muted">（{g.items.length}点{hitsIn > 0 ? `中${hitsIn}点的中` : ''}）</small>}
+                        </span>
+                        <span className="bet-stake">{formatCoins(g.items.reduce((a, t) => a + t.bet.stake, 0))}</span>
+                        <span className="bet-payout">{won > 0 ? `+${formatCoins(won)}` : '不的中'}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <p className="balance">
                   購入 {formatCoins(spent)} → 払い戻し <b>{formatCoins(shown)}</b>

@@ -3,6 +3,9 @@ import { createRace, horseProfiles, simulateRace } from '../sim';
 import {
   BETTING,
   buildMarket,
+  exactaProbability,
+  trifectaProbability,
+  trioProbability,
   isHit,
   payoutFor,
   placeCount,
@@ -43,6 +46,54 @@ describe('確率とオッズの基本', () => {
         expect(p.odds).toBeGreaterThanOrEqual(BETTING.placeMinOdds);
         expect(decimals(p.odds)).toBe(true);
       }
+    }
+  });
+
+  it('組み合わせの確率の合計：馬単・3連単・3連複は1、ワイドは3', () => {
+    const p = [0.3, 0.2, 0.15, 0.12, 0.1, 0.08, 0.05];
+    let ex = 0;
+    let tri = 0;
+    let trio = 0;
+    let wide = 0;
+    for (let i = 0; i < p.length; i++)
+      for (let j = 0; j < p.length; j++) {
+        if (i === j) continue;
+        ex += exactaProbability(p, i, j);
+        for (let k = 0; k < p.length; k++) if (k !== i && k !== j) tri += trifectaProbability(p, i, j, k);
+      }
+    for (let i = 0; i < p.length; i++)
+      for (let j = i + 1; j < p.length; j++)
+        for (let k = j + 1; k < p.length; k++) trio += trioProbability(p, i, j, k);
+    for (let i = 0; i < p.length; i++)
+      for (let j = i + 1; j < p.length; j++)
+        for (let k = 0; k < p.length; k++) if (k !== i && k !== j) wide += trioProbability(p, i, j, k);
+    expect(ex).toBeCloseTo(1, 9);
+    expect(tri).toBeCloseTo(1, 9);
+    expect(trio).toBeCloseTo(1, 9);
+    expect(wide).toBeCloseTo(3, 9);
+  });
+
+  it('ワイド・馬単・3連複・3連単も、確定オッズで払い戻し、的中は1組（ワイドは3組）', () => {
+    const { setup, market } = marketFor(9, 14);
+    const order = simulateRace(setup, { record: false }).finish.map((f) => f.number);
+    const pay = settle(market, order);
+    const [a, b, c] = order;
+    expect(pay.wide).toHaveLength(3);
+    expect(pay.exacta.key).toBe(`${a}>${b}`);
+    expect(pay.trifecta.key).toBe(`${a}>${b}>${c}`);
+    expect(pay.trio.key).toBe([a, b, c].sort((x, y) => x - y).join('-'));
+    const bet = (type: Bet['type'], selection: number[]): Bet => ({ type, selection, stake: 100 });
+    expect(isHit(bet('wide', [c, a]), order, 14)).toBe(true);
+    expect(isHit(bet('exacta', [b, a]), order, 14)).toBe(false);
+    expect(isHit(bet('trio', [c, b, a]), order, 14)).toBe(true);
+    expect(isHit(bet('trifecta', [a, c, b]), order, 14)).toBe(false);
+    expect(payoutFor(bet('trifecta', [a, b, c]), pay)).toBeCloseTo(pay.trifecta.odds * 100, 5);
+    // ワイドの確定オッズは表示の幅に入る
+    const board = market.boards.at(-1)!;
+    for (const w of pay.wide) {
+      const r = board.wide.get(w.key)!;
+      expect(w.odds).toBeGreaterThanOrEqual(r.min);
+      expect(w.odds).toBeLessThanOrEqual(r.max);
     }
   });
 
@@ -127,6 +178,14 @@ describe('的中判定と払い戻し', () => {
         { number: 1, odds: 1.8 },
       ],
       quinella: { key: '3-7', odds: 12.6 },
+      wide: [
+        { key: '3-7', odds: 4.1 },
+        { key: '1-3', odds: 2.0 },
+        { key: '1-7', odds: 6.3 },
+      ],
+      exacta: { key: '3>7', odds: 24.5 },
+      trio: { key: '1-3-7', odds: 31.2 },
+      trifecta: { key: '3>7>1', odds: 158.3 },
     };
     const bet = (type: Bet['type'], selection: number[], stake: number): Bet => ({ type, selection, stake });
     expect(payoutFor(bet('win', [3], 300), payouts)).toBe(690);
@@ -134,6 +193,13 @@ describe('的中判定と払い戻し', () => {
     expect(payoutFor(bet('place', [7], 200), payouts)).toBe(700);
     expect(payoutFor(bet('quinella', [7, 3], 100), payouts)).toBe(1260);
     expect(payoutFor(bet('quinella', [1, 3], 100), payouts)).toBe(0);
+    expect(payoutFor(bet('wide', [7, 1], 100), payouts)).toBe(630);
+    expect(payoutFor(bet('wide', [1, 5], 100), payouts)).toBe(0);
+    expect(payoutFor(bet('exacta', [3, 7], 100), payouts)).toBe(2450);
+    expect(payoutFor(bet('exacta', [7, 3], 100), payouts)).toBe(0);
+    expect(payoutFor(bet('trio', [7, 1, 3], 200), payouts)).toBe(6240);
+    expect(payoutFor(bet('trifecta', [3, 7, 1], 100), payouts)).toBe(15830);
+    expect(payoutFor(bet('trifecta', [3, 1, 7], 100), payouts)).toBe(0);
   });
 
   it('払い戻しの総額は控除後の投票総額を超えない', () => {

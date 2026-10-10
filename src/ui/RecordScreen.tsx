@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { BET_TYPE_LABEL } from '../betting';
 import { useGame } from '../store';
+import { groupBets } from './betGroups';
 import { formatCoins } from './GameHeader';
 
 /** 成績：所持コイン・回収率・最高配当・購入履歴 */
@@ -57,9 +57,10 @@ export function RecordScreen() {
                 {h.venue} {h.raceNo}R
               </span>
               <span className="tickets">
-                {h.tickets.map((t, k) => (
-                  <span key={k} className={t.payout > 0 ? 'hit' : ''}>
-                    {BET_TYPE_LABEL[t.bet.type]} {t.bet.selection.join('-')}
+                {groupBets(h.tickets, (t) => t.bet).map((g) => (
+                  <span key={g.key} className={g.items.some((t) => t.payout > 0) ? 'hit' : ''}>
+                    {g.label}
+                    {g.grouped && `（${g.items.length}点）`}
                   </span>
                 ))}
               </span>

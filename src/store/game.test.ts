@@ -11,6 +11,14 @@ const payouts: Payouts = {
     { number: 1, odds: 1.6 },
   ],
   quinella: { key: '3-7', odds: 9.8 },
+  wide: [
+    { key: '3-7', odds: 3.1 },
+    { key: '1-3', odds: 2.2 },
+    { key: '1-7', odds: 5.4 },
+  ],
+  exacta: { key: '3>7', odds: 18.2 },
+  trio: { key: '1-3-7', odds: 25.6 },
+  trifecta: { key: '3>7>1', odds: 120.5 },
 };
 
 afterEach(() => vi.unstubAllGlobals());

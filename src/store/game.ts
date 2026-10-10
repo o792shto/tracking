@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand';
-import { BETTING, payoutFor, type Bet, type Payouts } from '../betting';
+import { BETTING, BET_TYPE_ORDERED, payoutFor, type Bet, type Payouts } from '../betting';
 import { RACES_PER_MEETING } from '../sim/meeting';
 import { loadJSON, removeKey, saveJSON } from './storage';
 
@@ -61,8 +61,9 @@ export interface GameState extends SaveData {
 export interface GameActions {
   go: (screen: Screen) => void;
   /** 馬券を買う。買えないときは理由を返す */
-  buy: (bet: Bet) => string | null;
+  buy: (bet: Bet | Bet[]) => string | null;
   /** 発走前なら取り消して返金する */
+  /** 発走前なら取り消して返金する。まとめ買いの馬券は同じ買い方の馬券をまとめて取り消す */
   cancel: (index: number) => void;
   /** レースが確定したら払い戻して次のレースへ進める */
   settle: (payouts: Payouts, finishOrder: number[], venue: string) => void;
@@ -126,14 +127,21 @@ export function createGameStore(load = true) {
     go: (screen) => set({ screen }),
 
     buy: (bet) => {
+      const bets = Array.isArray(bet) ? bet : [bet];
       const { coins, placed, raceIndex } = get();
       if (raceIndex >= RACES_PER_MEETING) return 'この開催のレースは終わりました';
-      if (!Number.isInteger(bet.stake) || bet.stake <= 0 || bet.stake % BETTING.unit !== 0) {
+      if (bets.length === 0) return '買い目がありません';
+      if (bets.some((b) => !Number.isInteger(b.stake) || b.stake <= 0 || b.stake % BETTING.unit !== 0)) {
         return `金額は${BETTING.unit}コイン単位で入力してください`;
       }
-      if (bet.stake > coins) return '所持コインが足りません';
-      const selection = bet.type === 'quinella' ? [...bet.selection].sort((a, b) => a - b) : bet.selection;
-      set({ coins: coins - bet.stake, placed: [...placed, { ...bet, selection }] });
+      const cost = placedTotal(bets);
+      if (cost > coins) return '所持コインが足りません';
+      // 順不同の券種は馬番を小さい順にそろえる。まとめて買うときは全部買えるときだけ買う
+      const normalized = bets.map((b) => ({
+        ...b,
+        selection: BET_TYPE_ORDERED[b.type] ? [...b.selection] : [...b.selection].sort((x, y) => x - y),
+      }));
+      set({ coins: coins - cost, placed: [...placed, ...normalized] });
       return null;
     },
 
@@ -141,7 +149,9 @@ export function createGameStore(load = true) {
       const { placed, coins } = get();
       const bet = placed[index];
       if (!bet) return;
-      set({ coins: coins + bet.stake, placed: placed.filter((_, i) => i !== index) });
+      const same = (b: Bet, i: number) => (bet.group ? b.group?.id === bet.group.id : i === index);
+      const refund = placedTotal(placed.filter(same));
+      set({ coins: coins + refund, placed: placed.filter((b, i) => !same(b, i)) });
     },
 
     settle: (payouts, finishOrder, venue) => {

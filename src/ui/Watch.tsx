@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { BET_TYPE_LABEL, isHit, settle } from '../betting';
+import { isHit, settle } from '../betting';
+import { groupBets } from './betGroups';
 import { useGame } from '../store';
 import { RaceViewer } from './RaceViewer';
 import { useRaceCard, useRaceResult } from './useRace';
@@ -37,6 +38,11 @@ export function Watch() {
             </div>
           );
         }
+        // まとめ買いは1つにまとめて「◯点中◯点的中」
+        const groups = groupBets(
+          placed.map((bet, i) => ({ bet, hit: hits[i] })),
+          (x) => x.bet,
+        ).map((g) => ({ ...g, hitCount: g.items.filter((x) => x.hit).length }));
         if (variant === 'bar') {
           // スマホの最下部の細いバー：的中の数と、買い目を短く
           const n = hits.filter(Boolean).length;
@@ -48,10 +54,9 @@ export function Watch() {
                 <small>/{placed.length}点</small>
               </b>
               <span className="bets">
-                {placed.map((bet, i) => (
-                  <span key={i} className={hits[i] ? 'hit' : 'miss'}>
-                    {BET_TYPE_LABEL[bet.type]}
-                    {bet.selection.join('-')}
+                {groups.map((g) => (
+                  <span key={g.key} className={g.hitCount > 0 ? 'hit' : 'miss'}>
+                    {g.label}
                   </span>
                 ))}
               </span>
@@ -62,16 +67,14 @@ export function Watch() {
           <div className="bet-status" aria-label="馬券の状況" aria-live="off">
             <span className="label">{finished ? '着順' : '現在の着順なら'}</span>
             <ul>
-              {placed.map((bet, i) => {
-                const hit = hits[i];
-                return (
-                  <li key={i} className={hit ? 'hit' : 'miss'}>
-                    <span>{BET_TYPE_LABEL[bet.type]}</span>
-                    <b>{bet.selection.join('-')}</b>
-                    <span className="verdict">{hit ? '的中' : '不的中'}</span>
-                  </li>
-                );
-              })}
+              {groups.map((g) => (
+                <li key={g.key} className={g.hitCount > 0 ? 'hit' : 'miss'}>
+                  <b>{g.label}</b>
+                  <span className="verdict">
+                    {g.grouped ? `${g.items.length}点中 ${g.hitCount > 0 ? `${g.hitCount}点的中` : '的中なし'}` : g.hitCount > 0 ? '的中' : '不的中'}
+                  </span>
+                </li>
+              ))}
             </ul>
           </div>
         );
