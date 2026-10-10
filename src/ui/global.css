@@ -2435,7 +2435,7 @@ button.link {
   font-weight: 700;
 }
 .data-tabs {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   max-width: 880px;
   margin-bottom: 8px;
 }
@@ -2723,4 +2723,99 @@ button.link {
   flex-wrap: wrap;
   gap: 4px 12px;
   font-size: 13px;
+}
+
+.fav-badge {
+  color: var(--goal) !important;
+  font-size: 12px !important;
+  font-weight: 700;
+}
+.fav-star {
+  margin-right: 3px;
+  color: var(--goal);
+}
+.fav-toggle {
+  margin-left: 10px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.fav-toggle.on {
+  border-color: var(--goal);
+  color: var(--goal);
+}
+.award-year h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .data-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.review-screen h1 {
+  font-size: 22px;
+}
+.review-screen > section {
+  max-width: 880px;
+  margin-bottom: 16px;
+}
+.review-screen h2 {
+  font-size: 16px;
+  margin: 12px 0 8px;
+  color: var(--goal);
+}
+.review-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--goal);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.review-hero strong {
+  font-size: 24px;
+}
+.review-hero > span:last-child {
+  color: var(--muted);
+}
+.review-g1 {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.review-g1 li {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 13px;
+}
+.review-g1 .grade {
+  color: #fff;
+  font-size: 11px;
+}
+@media (max-width: 640px) {
+  .review-g1 li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .review-g1 li > span:first-child {
+    grid-column: 1 / -1;
+  }
 }

@@ -71,8 +71,12 @@ export const ENTRY = {
   prepBefore: 4,
   /** 前哨戦に出るのは、何週以上休んだあと（休み明けの1戦だけ） */
   prepAfterRest: 8,
-  /** G1 を目標にする目安の期間（週） */
-  g1Horizon: 6,
+  /** G1 を目標にする目安の期間（週）。冬の間もクラシックを見すえる */
+  g1Horizon: 16,
+  /** 2・3歳の牝馬が牡馬相手の重賞に出るのは、同世代のトップとの差がこれ以内の馬だけ */
+  fillyVsColts: 1.5,
+  /** 古馬の牝馬が牝馬限定でない重賞に出るときの選ばれにくさ（点） */
+  fillyOlderPenalty: 3,
 };
 function ageOk(race: ProgramRace, age: number): boolean {
   switch (race.age) {
@@ -149,16 +153,32 @@ export function weekCard(world: World): WeekCard {
     const r = score.get(h.id)!;
     topByAge.set(age, Math.max(topByAge.get(age) ?? 0, r));
   }
+  /**
+   * 2・3歳の牝馬は、牝馬限定でないレース（牡馬クラシックなど）にはほとんど出ない。
+   * 同世代のトップと互角の、ずば抜けた牝馬だけが挑む
+   */
+  const fillyStaysHome = (h: WorldHorse, race: Pick<ProgramRace, 'age' | 'fillies'>) =>
+    h.sex === 'filly' &&
+    !race.fillies &&
+    (race.age === '2' || race.age === '3') &&
+    score.get(h.id)! < (topByAge.get(ageOf(h, year)) ?? 0) - ENTRY.fillyVsColts;
+  /** G1 級の馬（G1 を勝っている、または同世代の上位） */
+  const elite = (h: WorldHorse) =>
+    h.graded.some((g) => g.grade === 'G1') || score.get(h.id)! >= (topByAge.get(ageOf(h, year)) ?? 0) - ENTRY.g1Margin;
   /** 目標の G1 が何週先か（目標がなければ null） */
   const g1Target = (h: WorldHorse): number | null => {
     const age = ageOf(h, year);
-    if (score.get(h.id)! < (topByAge.get(age) ?? 0) - ENTRY.g1Margin) return null;
+    if (!elite(h)) return null;
     const hit = g1Ahead.find(
-      ({ race: g }) => ageOk(g, age) && (!g.fillies || h.sex === 'filly') && aptitudeFit(h, g.surface, g.distance) > -2,
+      ({ race: g }) =>
+        ageOk(g, age) && (!g.fillies || h.sex === 'filly') && !fillyStaysHome(h, g) && aptitudeFit(h, g.surface, g.distance) > -2,
     );
     return hit ? hit.weeks : null;
   };
-  /** G1 を目標にする馬は、近すぎる前哨戦には出ない。前哨戦は休み明けの1戦だけ */
+  /**
+   * G1 を目標にする馬は、近すぎる前哨戦には出ない。前哨戦は休み明けの1戦だけ（叩き台）。
+   * そのため G1 馬は「休み明けの1戦 → G1」か「G1 へ直行」になる
+   */
   const skipsForG1 = (h: WorldHorse) => {
     const k = g1Target(h);
     if (k === null) return false;
@@ -216,6 +236,7 @@ export function weekCard(world: World): WeekCard {
         (p.age === '2' ? h.starts > 0 : h.wins > 0) &&
         (loose || h.tier === 'open' || h.tier === '3win' || p.age === '2' || p.age === '3') &&
         fit >= (loose ? ENTRY.looseFit : -2.5) &&
+        (loose || !fillyStaysHome(h, p)) &&
         (p.raceClass === 'G1' || !skipsForG1(h));
       const collect = (loose: boolean) =>
         active
@@ -223,7 +244,12 @@ export function weekCard(world: World): WeekCard {
           .filter(({ h, fit }) => eligible(h, fit, loose))
           .map(({ h, fit }) => ({
             h,
-            s: score.get(h.id)! + 0.8 * fit + 2 * Math.log10(1 + h.earnings) + pickRng.normal(0, 1.5),
+            s:
+              score.get(h.id)! +
+              0.8 * fit +
+              2 * Math.log10(1 + h.earnings) +
+              pickRng.normal(0, 1.5) -
+              (h.sex === 'filly' && !p.fillies ? ENTRY.fillyOlderPenalty : 0),
           }));
       pool = collect(false);
       if (pool.length < p.runners) {

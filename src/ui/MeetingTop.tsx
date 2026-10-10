@@ -4,7 +4,7 @@ import { CONDITION_LABEL, SURFACE_LABEL, WEEKDAY_LABEL, type MeetingRace } from 
 import { useGame, type Ticket } from '../store';
 import { frameColor } from '../render';
 import { GradeBadge, formatCoins } from './GameHeader';
-import { goNextWeek, runQuietly, skipWeek, useMeeting, useWorldData } from './useRace';
+import { goNextWeek, runQuietly, settleRest, skipWeek, useMeeting, useWorldData } from './useRace';
 import { NewsList } from './DataScreen';
 
 /** 今週のトップ：同じ週の開催日のレース（10R〜12R）をまとめて表示する */
@@ -19,6 +19,7 @@ export function MeetingTop() {
   const settleRace = useGame((s) => s.settle);
   const showResult = useGame((s) => s.showResult);
   const settlements = useGame((s) => s.settlements);
+  const favorites = useGame((s) => s.favorites);
   const [busy, setBusy] = useState(false);
   const done = raceIndex >= meeting.races.length;
 
@@ -54,6 +55,9 @@ export function MeetingTop() {
         </p>
         {!done && (
           <div className="skip-main">
+            <button type="button" onClick={() => settleRest(meeting)} disabled={busy}>
+              今週の残りを結果だけ見る
+            </button>
             <button type="button" onClick={() => run(() => skipWeek(meeting))} disabled={busy}>
               次の週へスキップ
             </button>
@@ -93,6 +97,7 @@ export function MeetingTop() {
                       <GradeBadge grade={race.grade} />
                       {race.name}
                     </strong>
+                    {favorites.length > 0 && <FavoriteBadge ids={race.horseIds} favorites={favorites} names={race.setup.entries.map((e) => e.horse.name)} />}
                     <span>
                       {race.className && `${race.className}・`}
                       {SURFACE_LABEL[course.surface]}
@@ -173,4 +178,11 @@ function NetResult({ tickets }: { tickets: Ticket[] }) {
       {formatCoins(net)}
     </span>
   );
+}
+
+/** お気に入りの馬が出るレースの印 */
+function FavoriteBadge({ ids, favorites, names }: { ids: number[]; favorites: number[]; names: string[] }) {
+  const mine = ids.flatMap((id, i) => (favorites.includes(id) ? [names[i]] : []));
+  if (mine.length === 0) return null;
+  return <span className="fav-badge">★ {mine.join('・')}</span>;
 }

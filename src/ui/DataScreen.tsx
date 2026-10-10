@@ -24,6 +24,7 @@ const TABS: { tab: DataTab; label: string }[] = [
   { tab: 'graded', label: '重賞勝ち馬' },
   { tab: 'awards', label: '年度表彰' },
   { tab: 'news', label: 'ニュース' },
+  { tab: 'favorites', label: 'お気に入り' },
 ];
 
 /** 馬名（タップで馬の詳細） */
@@ -88,6 +89,7 @@ export function DataScreen() {
       {tab === 'ranking' && <Ranking world={world} />}
       {tab === 'graded' && <GradedWinners world={world} />}
       {tab === 'awards' && <Awards world={world} />}
+      {tab === 'favorites' && <Favorites world={world} />}
       {tab === 'news' && (
         <section>
           <h1>競馬ニュース</h1>
@@ -299,7 +301,54 @@ function GradedWinners({ world }: { world: World }) {
   );
 }
 
+function Favorites({ world }: { world: World }) {
+  const favorites = useGame((s) => s.favorites);
+  const year = currentYear(world);
+  const horses = favorites.map((id) => world.horses.find((h) => h.id === id)).filter((h): h is WorldHorse => !!h);
+  return (
+    <section>
+      <h1>お気に入りの馬</h1>
+      {horses.length === 0 ? (
+        <p className="muted">馬の詳細の「☆ お気に入りに入れる」で登録できます。出走する週は、今週のレース一覧に ★ が付きます。</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>馬名</th>
+                <th>性齢</th>
+                <th>クラス</th>
+                <th>成績</th>
+                <th>前走</th>
+                <th className="num">賞金</th>
+              </tr>
+            </thead>
+            <tbody>
+              {horses.map((h) => {
+                const last = h.runs[h.runs.length - 1];
+                return (
+                  <tr key={h.id}>
+                    <td>
+                      <HorseLink id={h.id} name={h.name} />
+                    </td>
+                    <td>{h.retired ? '引退' : sexAge(h, year)}</td>
+                    <td>{tierLabel(h.tier)}</td>
+                    <td className="small">{recordLine(h)}</td>
+                    <td className="small">{last ? `${last.month}/${last.day} ${last.race} ${last.rank}着` : '—'}</td>
+                    <td className="num">{formatPrize(h.earnings)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Awards({ world }: { world: World }) {
+  const showReview = useGame((s) => s.showReview);
   const years = [...new Set(world.awards.map((a) => a.year))].sort((a, b) => b - a);
   if (years.length === 0) return <p className="muted">まだ表彰はありません。</p>;
   return (
@@ -307,7 +356,12 @@ function Awards({ world }: { world: World }) {
       <h1>年度表彰</h1>
       {years.map((y) => (
         <div key={y} className="award-year">
-          <h2>{y}年</h2>
+          <h2>
+            {y}年
+            <button type="button" className="link" onClick={() => showReview(y)}>
+              ふりかえりを見る
+            </button>
+          </h2>
           <dl className="awards">
             {world.awards
               .filter((a) => a.year === y)

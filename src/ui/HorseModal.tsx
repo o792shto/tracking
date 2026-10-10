@@ -12,6 +12,8 @@ export function HorseModal() {
   const id = useGame((s) => s.horseId);
   const close = useGame((s) => s.showHorse);
   const world = useWorldData();
+  const favorites = useGame((s) => s.favorites);
+  const toggleFavorite = useGame((s) => s.toggleFavorite);
   useEffect(() => {
     if (id === null) return;
     const onKey = (ev: KeyboardEvent) => ev.key === 'Escape' && close(null);
@@ -35,7 +37,17 @@ export function HorseModal() {
         ) : (
           <>
             <header>
-              <h2>{h.name}</h2>
+              <h2>
+                {h.name}
+                <button
+                  type="button"
+                  className={`fav-toggle ${favorites.includes(h.id) ? 'on' : ''}`}
+                  aria-pressed={favorites.includes(h.id)}
+                  onClick={() => toggleFavorite(h.id)}
+                >
+                  {favorites.includes(h.id) ? '★ お気に入り' : '☆ お気に入りに入れる'}
+                </button>
+              </h2>
               <p className="horse-meta">
                 {sexAge(h, year)}・{STYLE_LABEL[h.style]}・{tierLabel(h.tier)}
                 {h.retired && <span className="tag soft">{RETIRE_LABEL[h.retired.reason]}</span>}

@@ -9,7 +9,9 @@ import type { Sex, WorldHorse } from './types';
  */
 export const WORLD = {
   /** 素質の平均と標準偏差（能力値の平均）。G1級は上位数％ */
-  talentMean: 57,
+  talentMean: 54,
+  /** 能力値の上限（名簿の馬） */
+  statMax: 120,
   talentSpread: 12,
   /** 素質馬の割合と、上乗せの大きさ（標準偏差） */
   starChance: 0.1,
@@ -34,7 +36,10 @@ const STYLE_BIAS: Record<RunningStyle, Partial<HorseStats>> = {
 };
 const STAT_KEYS: (keyof HorseStats)[] = ['speed', 'stamina', 'kick', 'power', 'temperament', 'start'];
 
-const clampStat = (x: number) => Math.round(Math.min(100, Math.max(15, x)));
+/**
+ * 能力値の範囲。名簿の馬は100を超えてもよい（上限が100だと一流馬どうしの差が消えて、強い馬が抜けなくなる）
+ */
+const clampStat = (x: number) => Math.round(Math.min(WORLD.statMax, Math.max(15, x)));
 
 /** 新しい馬を1頭作る（成績は空） */
 export function newHorse(rng: Rng, id: number, birthYear: number, sex: Sex, taken: Set<string>, talentShift = 0): WorldHorse {

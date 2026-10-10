@@ -1,6 +1,7 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand';
 import { BETTING, BET_TYPE_ORDERED, payoutFor, type Bet, type Payouts } from '../betting';
+import { weekOf } from '../sim/world/calendar';
 import { loadJSON, removeKey, saveJSON } from './storage';
 
 export const STORAGE_KEY = 'keiba-tracking/save-v1';
@@ -10,9 +11,9 @@ export const STORAGE_KEY = 'keiba-tracking/save-v1';
  */
 export const SAVE_VERSION = 7;
 
-export type Screen = 'top' | 'card' | 'watch' | 'result' | 'record' | 'data';
+export type Screen = 'top' | 'card' | 'watch' | 'result' | 'record' | 'data' | 'review';
 /** データ画面のタブ */
-export type DataTab = 'calendar' | 'ranking' | 'graded' | 'awards' | 'news';
+export type DataTab = 'calendar' | 'ranking' | 'graded' | 'awards' | 'news' | 'favorites';
 
 export interface Ticket {
   bet: Bet;
@@ -60,6 +61,10 @@ interface SaveData {
   depositedSerial: number;
   /** その週に確定したレースの馬券と払い戻し（キーは観戦レースの何番目か。詳細を見るのに使う） */
   settlements: Record<number, Settlement>;
+  /** お気に入りの馬（名簿の id） */
+  favorites: number[];
+  /** 年ごとの馬券の成績（年末のふりかえり用） */
+  yearTotals: Record<number, Totals>;
 }
 
 export interface Settlement {
@@ -86,6 +91,8 @@ export interface GameState extends SaveData {
   viewing: number | null;
   /** 確定した直後の結果画面か（払い戻しの演出をする） */
   freshResult: boolean;
+  /** ふりかえりを見ている年 */
+  reviewYear: number | null;
 }
 
 export interface GameActions {
@@ -103,6 +110,10 @@ export interface GameActions {
   settle: (payouts: Payouts, finishOrder: number[], race: SettledRace, show?: boolean) => void;
   /** 確定したレースの結果（着順・払い戻し）を見る */
   showResult: (index: number) => void;
+  /** お気に入りに入れる・外す */
+  toggleFavorite: (id: number) => void;
+  /** その年のふりかえりを見る */
+  showReview: (year: number) => void;
   /**
    * 新しい週に入る（名簿の世界が進んだあとに呼ぶ）。その週の進み具合をやり直し、週ごとの入金を受け取る。
    * 残っている馬券は返金する
@@ -127,6 +138,8 @@ function initialData(): SaveData {
     history: [],
     depositedSerial: 0,
     settlements: {},
+    favorites: [],
+    yearTotals: {},
   };
 }
 
@@ -151,6 +164,18 @@ export function migrate(saved: SaveData): SaveData {
   };
 }
 
+const EMPTY_TOTALS: Totals = { spent: 0, returned: 0, bestPayout: 0, races: 0, hitRaces: 0 };
+
+function addTotals(t: Totals, spent: number, returned: number, best: number, bought: boolean): Totals {
+  return {
+    spent: t.spent + spent,
+    returned: t.returned + returned,
+    bestPayout: Math.max(t.bestPayout, best),
+    races: t.races + (bought ? 1 : 0),
+    hitRaces: t.hitRaces + (returned > 0 ? 1 : 0),
+  };
+}
+
 export function placedTotal(placed: Bet[]): number {
   return placed.reduce((a, b) => a + b.stake, 0);
 }
@@ -166,6 +191,7 @@ export function createGameStore(load = true) {
     horseId: null,
     viewing: null,
     freshResult: false,
+    reviewYear: null,
 
     go: (screen) => set({ screen }),
     openData: (tab) => set({ screen: 'data', dataTab: tab }),
@@ -200,6 +226,7 @@ export function createGameStore(load = true) {
 
     settle: (payouts, finishOrder, race, show = true) => {
       const s = get();
+      const year = weekOf(s.serial).year;
       const tickets = s.placed.map((bet) => ({ bet, payout: payoutFor(bet, payouts) }));
       const spent = placedTotal(s.placed);
       const returned = tickets.reduce((a, t) => a + t.payout, 0);
@@ -219,13 +246,8 @@ export function createGameStore(load = true) {
         placed: [],
         results: { ...s.results, [s.raceIndex]: finishOrder.slice(0, 3) },
         popularity: { ...s.popularity, [race.key]: race.popularity },
-        totals: {
-          spent: s.totals.spent + spent,
-          returned: s.totals.returned + returned,
-          bestPayout: Math.max(s.totals.bestPayout, best),
-          races: s.totals.races + (bought ? 1 : 0),
-          hitRaces: s.totals.hitRaces + (returned > 0 ? 1 : 0),
-        },
+        totals: addTotals(s.totals, spent, returned, best, bought),
+        yearTotals: { ...s.yearTotals, [year]: addTotals(s.yearTotals[year] ?? EMPTY_TOTALS, spent, returned, best, bought) },
         history: bought ? [record, ...s.history].slice(0, HISTORY_LIMIT) : s.history,
         settlements: { ...s.settlements, [s.raceIndex]: { tickets, payouts } },
         viewing: show ? s.raceIndex : s.viewing,
@@ -234,6 +256,11 @@ export function createGameStore(load = true) {
         screen: show ? 'result' : 'top',
       });
     },
+
+    toggleFavorite: (id) =>
+      set((s) => ({ favorites: s.favorites.includes(id) ? s.favorites.filter((x) => x !== id) : [...s.favorites, id] })),
+
+    showReview: (year) => set({ reviewYear: year, screen: 'review' }),
 
     showResult: (index) => {
       if (!get().settlements[index]) return;
@@ -260,7 +287,7 @@ export function createGameStore(load = true) {
 
     resetAll: () => {
       removeKey(STORAGE_KEY);
-      set({ ...initialData(), screen: 'top', viewing: null, freshResult: false, horseId: null });
+      set({ ...initialData(), screen: 'top', viewing: null, freshResult: false, horseId: null, reviewYear: null });
     },
   }));
 
@@ -277,6 +304,8 @@ export function createGameStore(load = true) {
       history: s.history,
       depositedSerial: s.depositedSerial,
       settlements: s.settlements,
+      favorites: s.favorites,
+      yearTotals: s.yearTotals,
     };
     saveJSON(STORAGE_KEY, save);
   });

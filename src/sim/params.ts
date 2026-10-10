@@ -15,7 +15,7 @@ export const PARAMS = {
   /** 距離による巡航速度の補正：(1600 / 距離) ^ この値 */
   cruiseDistanceExponent: { turf: 0.08, dirt: 0.13 } as Record<Surface, number>,
   /** スピード能力 0→100 で巡航速度に掛かる倍率の幅 */
-  speedStatRange: 0.04,
+  speedStatRange: 0.05,
   /** 馬場状態による速度倍率。芝は道悪で遅く、ダートは砂が締まって速くなる */
   conditionSpeed: {
     turf: { good: 1.0, yielding: 0.994, soft: 0.988, heavy: 0.982 },
@@ -183,5 +183,5 @@ export const PARAMS = {
    * 同じレースの出走馬の能力値のばらつき（標準偏差）。クラス分けされたレースは力の近い馬が集まるので小さめ。
    * 大きいと着差が開きすぎる（大差勝ちが多くなる）
    */
-  statSpread: 10,
+  statSpread: 7.5,
 };

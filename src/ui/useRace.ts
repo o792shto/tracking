@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { buildMarket, settle, type Payouts } from '../betting';
-import { horseProfiles, simulateRace, weekCard, weekMeeting, type Meeting, type MeetingRace, type World } from '../sim';
+import { horseProfiles, simulateRace, weekCard, weekMeeting, weekOf, type Meeting, type MeetingRace, type World } from '../sim';
 import { advanceWorld, clearWorld, getGameStore, getWorldStore, newWorld, useGame, useWorld, type SettledRace } from '../store';
 
 const EMPTY: Meeting = { serial: 0, year: 0, week: 0, weeksPerYear: 0, label: '', races: [] };
@@ -50,7 +50,21 @@ export function runQuietly(race: MeetingRace): { payouts: Payouts; finishOrder: 
 /** 次の週へ進める（名簿の世界を1週間走らせ、週の入金を受け取る） */
 export async function goNextWeek(): Promise<void> {
   const world = await advanceWorld(getWorldStore(), getGameStore().getState().popularity);
-  if (world) getGameStore().getState().beginWeek(world.serial);
+  if (!world) return;
+  const game = getGameStore().getState();
+  game.beginWeek(world.serial);
+  // 年が変わったら、前の年のふりかえりを見せる
+  const { year, week } = weekOf(world.serial);
+  if (week.index === 0) game.showReview(year - 1);
+}
+
+/** 今週の残りのレースをすべて観戦せずに確定させる（買った馬券は結果どおりに精算） */
+export function settleRest(meeting: Meeting): void {
+  const game = getGameStore();
+  for (let i = game.getState().raceIndex; i < meeting.races.length; i++) {
+    const r = runQuietly(meeting.races[i]);
+    game.getState().settle(r.payouts, r.finishOrder, r.info, false);
+  }
 }
 
 /** 今週の残りを飛ばして次の週へ。いまのレースに買った馬券があれば、そのレースだけ走らせて精算する */

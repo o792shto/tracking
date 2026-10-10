@@ -63,6 +63,7 @@ export function RaceCard() {
   const raceIndex = useGame((s) => s.raceIndex);
   const { race, profiles, market } = useRaceCard(raceIndex);
   const showHorse = useGame((s) => s.showHorse);
+  const favorites = useGame((s) => s.favorites);
   const placed = useGame((s) => s.placed);
   const buy = useGame((s) => s.buy);
   const cancel = useGame((s) => s.cancel);
@@ -291,6 +292,7 @@ export function RaceCard() {
                           showHorse(race.horseIds[i]);
                         }}
                       >
+                        {favorites.includes(race.horseIds[i]) && <span className="fav-star" aria-label="お気に入り">★</span>}
                         {e.horse.name}
                       </button>
                     </td>

@@ -72,6 +72,17 @@ describe('ゲームの状態', () => {
     expect(store.getState()).toMatchObject({ screen: 'result', viewing: 0, freshResult: false });
   });
 
+  it('お気に入りの出し入れと、年ごとの馬券の成績', () => {
+    const store = createGameStore(false);
+    store.getState().toggleFavorite(5);
+    store.getState().toggleFavorite(9);
+    store.getState().toggleFavorite(5);
+    expect(store.getState().favorites).toEqual([9]);
+    store.getState().buy({ type: 'win', selection: [3], stake: 1000 });
+    store.getState().settle(payouts, [3, 7, 1], race(), false);
+    expect(store.getState().yearTotals[2026]).toMatchObject({ spent: 1000, returned: 2500, races: 1, hitRaces: 1 });
+  });
+
   it('確定したレースの人気を週の記録に残す', () => {
     const store = createGameStore(false);
     store.getState().settle(payouts, [3, 7, 1], race());

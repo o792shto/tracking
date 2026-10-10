@@ -456,7 +456,7 @@ export function buildCommentary(result: RaceResult, options: CommentaryOptions =
   const ledAll = backStretch !== null && frameAt(backStretch).order[0] === wi && straightRank === 1;
   let goal: string;
   if (photo) {
-    goal = say([`${name(wi)}か${name(second.number - 1)}か！ 並んでゴールイン！`, `${name(wi)}、${name(second.number - 1)}、際どい！ 際どい勝負！`, `ほとんど並んでゴール！ 写真判定です`]);
+    goal = say([`${name(wi)}か${name(second.number - 1)}か！ 並んでゴールイン！`, `${name(wi)}、${name(second.number - 1)}、際どい！ 際どい勝負！`, `ほとんど並んでゴール！ ${name(wi)}か${name(second.number - 1)}か、写真判定です`]);
   } else if (second && second.marginSec * (D / w.time) / PARAMS.bodyLength >= 3) {
     goal = say([`${name(wi)}、圧勝！ 後続を${gapWords((second.marginSec * (D / w.time)) / PARAMS.bodyLength)}突き放してゴールイン！`, `強い！ ${name(wi)}が独走でゴールイン！`]);
   } else if (ledAll) {

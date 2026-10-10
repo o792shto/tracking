@@ -11,7 +11,7 @@ import type { FinishRecord, RaceSetup } from '../types';
  */
 export const QUICK = {
   /** 強さのばらつき（m/s） */
-  noise: 0.16,
+  noise: 0.18,
   /** 強さ（m/s）から平均速度への換算 */
   speedScale: 0.963,
 };

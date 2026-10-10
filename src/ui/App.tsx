@@ -8,6 +8,7 @@ import { MeetingTop } from './MeetingTop';
 import { RaceCard } from './RaceCard';
 import { RecordScreen } from './RecordScreen';
 import { ResultScreen } from './ResultScreen';
+import { ReviewScreen } from './ReviewScreen';
 import { Watch } from './Watch';
 import { freshSeed } from './useRace';
 
@@ -65,6 +66,7 @@ export function App() {
       {screen === 'result' && <ResultScreen />}
       {screen === 'record' && <RecordScreen />}
       {screen === 'data' && <DataScreen />}
+      {screen === 'review' && <ReviewScreen />}
       <HorseModal />
     </div>
   );
