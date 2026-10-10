@@ -65,8 +65,6 @@ export const ENTRY = {
   looseFit: -6,
   /** 出走表が成り立つ最少頭数 */
   minRunners: 5,
-  /** G1 を目標にする馬の目安（同世代の上位の総合力との差） */
-  g1Margin: 4,
   /** G1 を目標にする馬は、G1 の何週前までなら前哨戦に出るか（これより近いと出ない） */
   prepBefore: 4,
   /** 前哨戦に出るのは、何週以上休んだあと（休み明けの1戦だけ） */
@@ -78,6 +76,44 @@ export const ENTRY = {
   /** 古馬の牝馬が牝馬限定でない重賞に出るときの選ばれにくさ（点） */
   fillyOlderPenalty: 3,
 };
+/**
+ * G1 の優先出走権（ユーザー指定）。前哨戦でこの着順以内なら、賞金にかかわらず先に出走できる
+ */
+export const PRIORITY_TRIALS: Record<string, readonly (readonly [string, number])[]> = {
+  皐月賞: [
+    ['弥生賞ディープインパクト記念', 3],
+    ['スプリングS', 3],
+  ],
+  日本ダービー: [
+    ['青葉賞', 2],
+    ['皐月賞', 5],
+  ],
+  桜花賞: [
+    ['チューリップ賞', 3],
+    ['フィリーズレビュー', 3],
+  ],
+  オークス: [
+    ['桜花賞', 5],
+    ['フローラS', 2],
+  ],
+  菊花賞: [
+    ['神戸新聞杯', 3],
+    ['セントライト記念', 3],
+  ],
+  秋華賞: [
+    ['ローズS', 3],
+    ['紫苑S', 3],
+  ],
+  NHKマイルC: [['ニュージーランドT', 3]],
+};
+
+/** その年の前哨戦で優先出走権を取っているか */
+export function hasPriority(h: WorldHorse, g1: string, year: number): boolean {
+  const trials = PRIORITY_TRIALS[g1];
+  if (!trials) return false;
+  return h.runs.some((r) => r.year === year && trials.some(([name, top]) => r.race === name && r.rank <= top));
+}
+
 function ageOk(race: ProgramRace, age: number): boolean {
   switch (race.age) {
     case '2':
@@ -162,18 +198,36 @@ export function weekCard(world: World): WeekCard {
     !race.fillies &&
     (race.age === '2' || race.age === '3') &&
     score.get(h.id)! < (topByAge.get(ageOf(h, year)) ?? 0) - ENTRY.fillyVsColts;
-  /** G1 級の馬（G1 を勝っている、または同世代の上位） */
-  const elite = (h: WorldHorse) =>
-    h.graded.some((g) => g.grade === 'G1') || score.get(h.id)! >= (topByAge.get(ageOf(h, year)) ?? 0) - ENTRY.g1Margin;
-  /** 目標の G1 が何週先か（目標がなければ null） */
+  /** G1 に出たい馬の条件（年齢・性別・距離・勝ち鞍） */
+  const wantsG1 = (h: WorldHorse, g: ProgramRace) =>
+    ageOk(g, ageOf(h, year)) &&
+    (!g.fillies || h.sex === 'filly') &&
+    !fillyStaysHome(h, g) &&
+    (g.age === '2' ? h.starts > 0 : h.wins > 0) &&
+    aptitudeFit(h, g.surface, g.distance) > -2.5;
+  /** これからの G1 それぞれの、賞金で出走できる目安（出走頭数番目の賞金） */
+  const cutoff = new Map<string, number>();
+  for (const { race: g } of g1Ahead) {
+    if (cutoff.has(g.name)) continue;
+    const earnings = active
+      .filter((h) => wantsG1(h, g) && !hasPriority(h, g.name, year))
+      .map((h) => h.earnings)
+      .sort((a, b) => b - a);
+    cutoff.set(g.name, earnings[Math.min(earnings.length - 1, g.runners - 1)] ?? 0);
+  }
+  /**
+   * 目標の G1 が何週先か（目標がなければ null）。賞金が足りている馬と、優先出走権を取った馬だけが G1 を目標にする
+   * （賞金が足りない馬は前哨戦で賞金や権利を取りにいく）
+   */
+  const targetCache = new Map<number, number | null>();
   const g1Target = (h: WorldHorse): number | null => {
-    const age = ageOf(h, year);
-    if (!elite(h)) return null;
+    if (targetCache.has(h.id)) return targetCache.get(h.id)!;
     const hit = g1Ahead.find(
-      ({ race: g }) =>
-        ageOk(g, age) && (!g.fillies || h.sex === 'filly') && !fillyStaysHome(h, g) && aptitudeFit(h, g.surface, g.distance) > -2,
+      ({ race: g }) => wantsG1(h, g) && (hasPriority(h, g.name, year) || (h.earnings > 0 && h.earnings >= (cutoff.get(g.name) ?? Infinity))),
     );
-    return hit ? hit.weeks : null;
+    const weeks = hit ? hit.weeks : null;
+    targetCache.set(h.id, weeks);
+    return weeks;
   };
   /**
    * G1 を目標にする馬は、近すぎる前哨戦には出ない。前哨戦は休み明けの1戦だけ（叩き台）。
@@ -244,12 +298,15 @@ export function weekCard(world: World): WeekCard {
           .filter(({ h, fit }) => eligible(h, fit, loose))
           .map(({ h, fit }) => ({
             h,
+            // G1 は優先出走権のある馬が先、あとは賞金順（ユーザー指定）。G2・G3 は賞金を重く、能力（陣営の見立て）も少し
             s:
-              score.get(h.id)! +
-              0.8 * fit +
-              2 * Math.log10(1 + h.earnings) +
-              pickRng.normal(0, 1.5) -
-              (h.sex === 'filly' && !p.fillies ? ENTRY.fillyOlderPenalty : 0),
+              p.raceClass === 'G1'
+                ? (hasPriority(h, p.name, year) ? 1e6 : 0) + h.earnings + pickRng.range(0, 1)
+                : 3 * Math.log10(1 + h.earnings) +
+                  0.4 * score.get(h.id)! +
+                  0.8 * fit +
+                  pickRng.normal(0, 1.5) -
+                  (h.sex === 'filly' && !p.fillies ? ENTRY.fillyOlderPenalty : 0),
           }));
       pool = collect(false);
       if (pool.length < p.runners) {
@@ -264,6 +321,8 @@ export function weekCard(world: World): WeekCard {
         if (!base(h) || !available(h, serial, rest) || (!loose && !underYearCap(h, year)) || fit < (loose ? ENTRY.looseFit : ENTRY.minFit)) {
           return false;
         }
+        // G1 に出られる賞金・権利のある馬は、条件戦には出ずに G1 へ向かう
+        if (g1Target(h) !== null) return false;
         if (p.raceClass === 'newcomer') return h.starts === 0;
         // 未勝利戦はデビューした馬が先（頭数が足りなければ未出走の馬も出る）
         if (h.tier === tier) return p.raceClass !== 'maiden' || h.starts > 0 || loose;
@@ -340,6 +399,13 @@ export function raceSetup(world: World, card: WeekCard, race: CardRace): RaceSet
       frame: frames[i],
       horse: simHorse(h, card.year, progress),
       history: historyOf(h),
+      record: {
+        g1Wins: h.graded.filter((g) => g.grade === 'G1').length,
+        gradedWins: h.graded.length,
+        wins: h.wins,
+        starts: h.starts,
+        earnings: h.earnings,
+      },
       form: 1 + rng.normal(0, 0.003),
     };
   });

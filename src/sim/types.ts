@@ -91,6 +91,8 @@ export interface Entry {
   horse: Horse;
   /** 名簿の馬の近走（新しい順）。なければ出馬表の近走は作り物 */
   history?: PastRun[];
+  /** 名簿の馬の実績（人気の付き方に使う） */
+  record?: { g1Wins: number; gradedWins: number; wins: number; starts: number; earnings: number };
   /** 当日の調子（0.985〜1.015 程度、プレイヤーには非公開） */
   form: number;
 }

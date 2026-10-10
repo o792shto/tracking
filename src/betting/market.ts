@@ -7,9 +7,26 @@ export function placeCount(runners: number): number {
   return runners <= 7 ? 2 : 3;
 }
 
-/** 見た目の強さから各馬の勝率を推定する（ソフトマックス） */
+/**
+ * 実績による人気の上乗せ（見た目の強さと同じ m/s 換算）。ファンは能力だけでなく、
+ * G1・重賞の勝ち鞍や近走の重賞での好走を見て買う
+ */
+export function reputation(entry: RaceSetup['entries'][number]): number {
+  const r = entry.record;
+  let rep = 0;
+  if (r) {
+    rep += BETTING.reputation.g1 * Math.min(r.g1Wins, 3);
+    rep += BETTING.reputation.graded * Math.min(r.gradedWins - r.g1Wins, 3);
+  }
+  for (const run of entry.history?.slice(0, 3) ?? []) {
+    if (run.grade && run.rank <= 3) rep += BETTING.reputation.gradedPlace;
+  }
+  return rep;
+}
+
+/** 見た目の強さと実績から各馬の勝率を推定する（ソフトマックス） */
 export function winProbabilities(setup: RaceSetup): number[] {
-  const s = apparentStrength(setup);
+  const s = apparentStrength(setup).map((x, i) => x + reputation(setup.entries[i]));
   const max = Math.max(...s);
   const e = s.map((x) => Math.exp((x - max) / BETTING.strengthTemperature));
   const z = e.reduce((a, b) => a + b, 0);
