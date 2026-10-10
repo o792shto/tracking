@@ -96,31 +96,3 @@ export const sfx = {
     tone(1318, 0.5, 0.8, 'triangle', 0.08);
   },
 };
-
-/**
- * 実況の読み上げ（ブラウザの音声合成）。日本語の声があればそれを使う。
- * 前の文を読み終えていなければ打ち切って、新しい文を読む（レースに遅れないように）
- */
-export function speak(text: string) {
-  try {
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ja-JP';
-    u.rate = 1.15;
-    const ja = synth.getVoices().find((v) => v.lang.startsWith('ja'));
-    if (ja) u.voice = ja;
-    synth.speak(u);
-  } catch {
-    // 読み上げできない端末では何もしない
-  }
-}
-
-export function stopSpeaking() {
-  try {
-    window.speechSynthesis?.cancel();
-  } catch {
-    // 何もしない
-  }
-}

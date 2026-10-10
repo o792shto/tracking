@@ -1,5 +1,5 @@
 /** カメラの操作モード */
-export type CameraMode = 'auto' | 'overview' | 'leader' | 'horse';
+export type CameraMode = 'overview' | 'leader' | 'horse';
 
 export interface Rect {
   minX: number;

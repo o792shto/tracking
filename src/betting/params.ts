@@ -19,8 +19,6 @@ export const BETTING = {
   earlyNoise: 0.25,
   /** 票の総額（1頭あたり、コイン）。払い戻しの端数に影響するだけ */
   poolPerRunner: { win: 8_000_000, place: 5_000_000, quinella: 12_000_000 },
-  /** 1レースの購入上限（コイン） */
-  raceLimit: 5000,
   /** 初期コイン */
   initialCoins: 10_000,
   /** 所持コインが尽きたとき（購入の単位未満）に再入金できる額 */

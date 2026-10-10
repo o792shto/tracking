@@ -131,9 +131,6 @@ export function createGameStore(load = true) {
       if (!Number.isInteger(bet.stake) || bet.stake <= 0 || bet.stake % BETTING.unit !== 0) {
         return `金額は${BETTING.unit}コイン単位で入力してください`;
       }
-      if (placedTotal(placed) + bet.stake > BETTING.raceLimit) {
-        return `1レースの購入上限は${BETTING.raceLimit.toLocaleString()}コインです`;
-      }
       if (bet.stake > coins) return '所持コインが足りません';
       const selection = bet.type === 'quinella' ? [...bet.selection].sort((a, b) => a - b) : bet.selection;
       set({ coins: coins - bet.stake, placed: [...placed, { ...bet, selection }] });

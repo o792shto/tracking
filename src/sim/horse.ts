@@ -1,4 +1,5 @@
 import { generateHorseName } from './names';
+import { PARAMS } from './params';
 import { Rng } from './rng';
 
 /** 文字列から乱数のシードを作る（FNV-1a） */
@@ -37,7 +38,7 @@ const STYLE_BIAS: Record<RunningStyle, Partial<HorseStats>> = {
 };
 
 function stat(rng: Rng, mean: number, bias = 0): number {
-  return Math.round(Math.min(100, Math.max(15, rng.normal(mean + bias, 10))));
+  return Math.round(Math.min(100, Math.max(15, rng.normal(mean + bias, PARAMS.statSpread))));
 }
 
 /**

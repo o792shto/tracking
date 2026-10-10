@@ -25,11 +25,13 @@ describe('ゲームの状態', () => {
     expect(store.getState().placed).toHaveLength(0);
   });
 
-  it('100単位でない金額、上限超え、所持コイン不足は買えない', () => {
+  it('100単位でない金額、所持コイン不足は買えない。1レースの購入額に上限はない', () => {
     const store = createGameStore(false);
     const s = store.getState();
     expect(s.buy({ type: 'win', selection: [1], stake: 150 })).toMatch('単位');
-    expect(s.buy({ type: 'win', selection: [1], stake: BETTING.raceLimit + 100 })).toMatch('上限');
+    expect(s.buy({ type: 'win', selection: [1], stake: 8000 })).toBeNull();
+    expect(store.getState().buy({ type: 'win', selection: [2], stake: 2000 })).toBeNull();
+    expect(store.getState().coins).toBe(0);
     store.setState({ coins: 200 });
     expect(store.getState().buy({ type: 'win', selection: [1], stake: 300 })).toMatch('足りません');
   });

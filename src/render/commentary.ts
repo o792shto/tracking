@@ -1,5 +1,5 @@
 import { PARAMS, Rng, racePath, type RaceResult } from '../sim';
-import { photoFinish, referenceLap } from './overlay';
+import { photoFinish } from './overlay';
 import { runningOrder, sampleAt, type HorseSample } from './replay';
 
 /**
@@ -20,7 +20,15 @@ export interface CommentaryOptions {
   popularity?: readonly number[];
   /** 自分の買った馬の馬番 */
   mine?: ReadonlySet<number>;
+  /** 重賞ならレース名と格（「〇〇、△△を制しました」に使う） */
+  raceName?: string;
+  grade?: 'G1' | 'G2' | 'G3' | null;
 }
+
+/** 隊列で同じ集団とみなす前の馬との差（馬身） */
+const GROUP_GAP = 0.8;
+/** 内と外に並んでいるとみなす横の差（m） */
+const SIDE_BY_SIDE = 2;
 
 /** 先頭が入れ替わったとみなす差（m）と、続いている時間（秒） */
 const LEAD_CHANGE_GAP = 0.4;
@@ -168,34 +176,111 @@ export function buildCommentary(result: RaceResult, options: CommentaryOptions =
   const cornerLength = 2 * (path.fourthCornerStart - path.finalCornerStart);
   const cornerCallD = D - path.homeStretch - Math.min(cornerLength, 380);
 
-  // --- 隊列（前から順に） ---
+  // --- 隊列（前から順に、集団ごとに） ---
+  /** 人気馬の位置の言い方 */
+  const placeWords = (rank: number) =>
+    rank === 1
+      ? '先頭'
+      : rank <= 3
+        ? `${rank}番手の好位`
+        : rank === n
+          ? '最後方'
+          : rank >= n - 2
+            ? `後方${n - rank + 1}番手`
+            : rank <= Math.ceil(n * 0.45)
+              ? `前寄りの${rank}番手`
+              : `中団${rank}番手`;
+  const favorites = [1, 2]
+    .map((p) => entries.findIndex((_, i) => pop(i) === p))
+    .filter((i) => i >= 0);
+
   const formation = (t: number) => {
     const f = frameAt(t);
     const o = f.order;
-    const lead = lengths(f.s[o[0]].d - f.s[o[1]].d);
-    const head =
-      lead >= 1.5
-        ? say([`先頭は${name(o[0])}、リードは${gapWords(lead)}`, `${name(o[0])}が${gapWords(lead)}ほどのリードで先頭`])
-        : say([`先頭は${name(o[0])}`, `${name(o[0])}が引っ張ります`]);
-    const front = `${name(o[1])}が2番手、${name(o[2])}${n > 8 ? `、${name(o[3])}と続いて` : 'が続いて'}`;
-    const midIdx = Math.floor(n / 2);
-    const mid = n > 8 ? `中団に${name(o[midIdx - 1])}、${name(o[midIdx])}` : '';
-    const rear = `${n > 6 ? `後方から${name(o[n - 2])}、` : ''}最後方に${name(o[n - 1])}`;
-    const lead2 = lengths(f.s[o[0]].d - f.s[o[n - 1]].d);
-    add(t, `${head}。${front}`, 'position');
-    add(t + 3, `${mid ? `${mid}。` : ''}${rear}${lead2 > 15 ? '。縦長の隊列' : lead2 < 8 ? '。一団の馬群' : ''}`, 'position');
+    // 前の馬との差で集団に分ける
+    const groups: number[][] = [];
+    for (let k = 0; k < o.length; k++) {
+      const gap = k === 0 ? Infinity : lengths(f.s[o[k - 1]].d - f.s[o[k]].d);
+      if (gap > GROUP_GAP) groups.push([o[k]]);
+      else groups[groups.length - 1].push(o[k]);
+    }
+    /** 2頭が内と外に並んでいれば [内, 外] */
+    const pairOf = (g: number[]) =>
+      g.length === 2 && Math.abs(f.s[g[0]].x - f.s[g[1]].x) >= SIDE_BY_SIDE
+        ? f.s[g[0]].x < f.s[g[1]].x
+          ? g
+          : [g[1], g[0]]
+        : null;
+    const sentences: string[] = [];
+    let prevWhere = '';
+    groups.forEach((g, gi) => {
+      const rank = o.indexOf(g[0]) + 1;
+      const gapBefore = gi === 0 ? 0 : lengths(f.s[groups[gi - 1][groups[gi - 1].length - 1]].d - f.s[g[0]].d);
+      const gapAfter = gi + 1 < groups.length ? lengths(f.s[g[g.length - 1]].d - f.s[groups[gi + 1][0]].d) : 0;
+      const pair = pairOf(g);
+      if (gi === 0) {
+        if (g.length === 1) {
+          sentences.push(
+            gapAfter >= 1.5
+              ? say([`先頭は${name(g[0])}、リードは${gapWords(gapAfter)}`, `${name(g[0])}が${gapWords(gapAfter)}ほどのリードで先頭`, `ハナは${name(g[0])}、後続に${gapWords(gapAfter)}の差`])
+              : say([`先頭は${name(g[0])}`, `${name(g[0])}が先頭で引っ張ります`]),
+          );
+        } else if (pair) {
+          sentences.push(`内に${name(pair[0])}、外に${name(pair[1])}、2頭並んで先頭`);
+        } else {
+          sentences.push(`${g.map(name).join('、')}が${g.length === 2 ? '並んで先頭' : '横並びで先頭争い'}`);
+        }
+        prevWhere = '先団';
+        return;
+      }
+      const isLast = gi === groups.length - 1;
+      const where = isLast && g.length === 1 ? '最後方' : rank <= Math.ceil(n * 0.35) ? '好位' : rank <= Math.ceil(n * 0.7) ? '中団' : '後方';
+      const names = pair ? `内に${name(pair[0])}、外に${name(pair[1])}` : g.map(name).join('、');
+      if (gapBefore < 1.2 && where === prevWhere) {
+        // 同じ位置どりのすぐ後ろ
+        sentences.push(`${say(['すぐ後ろに', 'その後ろに', '続いて'])}${names}`);
+      } else {
+        const lead =
+          gapBefore < 1.2
+            ? ''
+            : gapBefore < 2.5
+              ? say(['1馬身ほどあいて', '少しあいて'])
+              : gapBefore < 4.5
+                ? say(['2、3馬身離れて', '少し離れて'])
+                : say(['大きく離れて', 'かなり離れて']);
+        sentences.push(`${lead}${where}${pair ? 'の' : 'に'}${names}`);
+      }
+      prevWhere = where;
+    });
+    const spread = lengths(f.s[o[0]].d - f.s[o[n - 1]].d);
+    sentences.push(
+      spread > 15
+        ? say(['縦長の隊列になっています', '馬群は縦に長い'])
+        : spread < 8
+          ? say(['一団の馬群', 'ひと固まりの馬群です'])
+          : `先頭から最後方まで${Math.round(spread)}馬身ほど`,
+    );
+    // 3文ずつ字幕にする
+    const PER_LINE = 3;
+    for (let k = 0; k < sentences.length; k += PER_LINE) {
+      add(t + (k / PER_LINE) * 2.4, sentences.slice(k, k + PER_LINE).join('。'), 'position');
+    }
+    const after = t + Math.ceil(sentences.length / PER_LINE) * 2.4;
+    // 人気馬の位置（1行にまとめる）
+    const favText = favorites.map((fi) => {
+      const rank = o.indexOf(fi) + 1;
+      const who = pop(fi) === 1 ? say(['人気を背負った', '1番人気の']) : '2番人気の';
+      return `${who}${name(fi)}は${rank === 1 ? '先頭' : `${placeWords(rank)}`}`;
+    });
+    if (favText.length) add(after, `${favText.join('、')}${say(['の位置', '', 'につけています'])}`, 'position');
     // 自分の馬の位置
     const ranks = [...mine]
       .map((num) => ({ num, rank: o.indexOf(num - 1) + 1 }))
-      .filter((m) => m.rank > 0)
+      .filter((m) => m.rank > 0 && !favorites.includes(m.num - 1))
       .sort((a, b) => a.rank - b.rank)
       .slice(0, 2);
     if (ranks.length) {
-      add(
-        t + 6,
-        ranks.map((m) => `${name(m.num - 1)}は${m.rank === 1 ? '先頭' : `${m.rank}番手`}`).join('、') + say(['', 'の位置', 'で追走']),
-        'mine',
-      );
+      add(after + 2.2, ranks.map((m) => `${name(m.num - 1)}は${placeWords(m.rank)}`).join('、') + say(['', 'の位置', 'で追走']), 'mine');
     }
   };
   // 向正面（勝負所の手前）で1回。短い距離は先行争いの後すぐ。長い距離は1周目でも
@@ -208,25 +293,12 @@ export function buildCommentary(result: RaceResult, options: CommentaryOptions =
   }
   if (backStretch !== null) formation(backStretch);
 
-  // --- 通過タイム・ペース ---
+  // --- 通過タイム（タイムだけを伝える） ---
   if (D >= 1600) {
     const t1000 = leaderTimeAt(1000);
-    if (t1000 !== null) {
-      const expected = referenceLap(result) * 5;
-      const diff = t1000 - expected;
-      const pace =
-        diff < -1
-          ? say(['ハイペース！', '速い流れになりました', 'かなり飛ばしています'])
-          : diff > 1
-            ? say(['ゆったりとしたスローペース', '落ち着いた流れ', 'ペースは遅い'])
-            : say(['平均的なペース', '淀みのない流れ', 'まずまずの流れ']);
-      add(t1000 + 0.5, `1000mの通過は${spokenTime(t1000, true)}。${pace}`, 'pace');
-    }
+    if (t1000 !== null) add(t1000 + 0.5, say([`1000mの通過は${spokenTime(t1000, true)}`, `1000m通過、${spokenTime(t1000, true)}`]), 'pace');
   } else if (Number.isFinite(result.first3f)) {
-    const expected = referenceLap(result) * 3;
-    const diff = result.first3f - expected;
-    const pace = diff < -0.6 ? '速い流れ' : diff > 0.6 ? '落ち着いた流れ' : '平均的な流れ';
-    add(result.first3f + 0.5, `前半600mは${spokenTime(result.first3f)}。${pace}`, 'pace');
+    add(result.first3f + 0.5, `前半600mの通過は${spokenTime(result.first3f)}`, 'pace');
   }
 
   // --- 3〜4コーナー：手応えと進出 ---
@@ -284,6 +356,22 @@ export function buildCommentary(result: RaceResult, options: CommentaryOptions =
         : say([`${name(a)}が先頭、${name(b)}が並びかける`, `${name(a)}と${name(b)}の叩き合い！`, `${name(b)}が${name(a)}に迫る！`]),
       'straight',
     );
+  }
+
+  // 直線：1番人気がまだ後ろにいるなら触れる
+  if (straightT !== null) {
+    const f = frameAt(straightT + 4);
+    const fav = favorites[0];
+    if (fav !== undefined && pop(fav) === 1) {
+      const rank = f.order.indexOf(fav) + 1;
+      if (rank > 3) {
+        add(
+          straightT + 4,
+          say([`1番人気の${name(fav)}はまだ${placeWords(rank)}、届くか！`, `人気の${name(fav)}は${placeWords(rank)}から追い上げにかかる`, `${name(fav)}はまだ後ろ、間に合うか`]),
+          'straight',
+        );
+      }
+    }
   }
 
   // 先頭交代（直線とその手前）
@@ -372,7 +460,19 @@ export function buildCommentary(result: RaceResult, options: CommentaryOptions =
   }
 
   // --- 結果 ---
-  const after = (photo ? photo.revealAt : w.time) + 2.5;
+  let after = (photo ? photo.revealAt : w.time) + 2.5;
+  // 重賞は「〇〇、△△を制しました」
+  if (options.grade && options.raceName) {
+    const race = options.raceName;
+    add(
+      after - 0.6,
+      options.grade === 'G1'
+        ? say([`${name(wi)}、${race}を制しました！`, `${race}の栄冠は${name(wi)}！`, `${name(wi)}、${race}制覇！ 見事G1のタイトルを手にしました`])
+        : say([`${name(wi)}、${race}を制しました！`, `${race}は${name(wi)}が勝利！`, `${name(wi)}が${race}を勝ち取りました`]),
+      'result',
+    );
+    after += 2.4;
+  }
   const p = pop(wi);
   const popWords =
     p === undefined
@@ -383,6 +483,20 @@ export function buildCommentary(result: RaceResult, options: CommentaryOptions =
           ? say([`${p}番人気の大穴！`, `${p}番人気、波乱の決着！`])
           : `${p}番人気`;
   add(after, `勝ちタイムは${spokenTime(w.time)}、上がり3Fは${spokenTime(w.last3f)}${popWords ? `。${popWords}` : ''}`, 'result');
+  // 1番人気が負けたとき
+  const favorite = entries.findIndex((_, i) => pop(i) === 1);
+  if (favorite >= 0 && favorite !== wi) {
+    const fr = finish.find((f) => f.number === favorite + 1)!;
+    add(
+      after + 2.4,
+      fr.rank <= 3
+        ? say([`1番人気の${name(favorite)}は${fr.rank}着`, `人気の${name(favorite)}は${fr.rank}着まで`])
+        : fr.rank <= 5
+          ? say([`1番人気の${name(favorite)}は${fr.rank}着に敗れました`, `人気を背負った${name(favorite)}は${fr.rank}着`])
+          : say([`1番人気の${name(favorite)}は${fr.rank}着、まさかの大敗`, `人気を背負った${name(favorite)}は${fr.rank}着に沈みました`]),
+      'result',
+    );
+  }
   const mineFinish = finish.filter((f) => mine.has(f.number)).slice(0, 3);
   if (mineFinish.length) {
     const last = Math.max(...mineFinish.map((f) => f.time));

@@ -28,7 +28,6 @@ function formatRange(min: number, max: number): string {
 export function RaceCard() {
   const raceIndex = useGame((s) => s.raceIndex);
   const { meeting, race, profiles, market } = useRaceCard(raceIndex);
-  const coins = useGame((s) => s.coins);
   const placed = useGame((s) => s.placed);
   const buy = useGame((s) => s.buy);
   const cancel = useGame((s) => s.cancel);
@@ -69,7 +68,6 @@ export function RaceCard() {
   const { course, entries } = race.setup;
   const picks = BET_TYPE_PICKS[type];
   const total = placedTotal(placed);
-  const remainingLimit = Math.min(BETTING.raceLimit - total, coins);
 
   const toggle = (num: number) => {
     setMessage(null);
@@ -283,7 +281,7 @@ export function RaceCard() {
           )}
 
           <h3>
-            購入した馬券 <span className="muted">合計 {formatCoins(total)}／上限 {formatCoins(BETTING.raceLimit)}</span>
+            購入した馬券 <span className="muted">合計 {formatCoins(total)}</span>
           </h3>
           {placed.length === 0 ? (
             <p className="muted">まだありません。</p>
@@ -302,7 +300,7 @@ export function RaceCard() {
               ))}
             </ul>
           )}
-          <p className="muted small">あと{formatCoins(Math.max(0, remainingLimit))}コインまで買えます。払い戻しは確定オッズで計算します。</p>
+          <p className="muted small">所持コインの範囲でいくらでも買えます。払い戻しは確定オッズで計算します。</p>
 
           <button type="button" className="start wide" onClick={start}>
             {placed.length ? '発走する' : '馬券を買わずに観戦する'}

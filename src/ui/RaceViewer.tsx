@@ -19,12 +19,11 @@ import {
 } from '../render';
 import { useSettings } from '../store';
 import { LapChart } from './LapChart';
-import { sfx, speak, stopSpeaking } from './sound';
+import { sfx } from './sound';
 import { Standings } from './Standings';
 import { useLayoutMode } from './useLayout';
 
 const CAMERA_MODES: { mode: CameraMode; label: string }[] = [
-  { mode: 'auto', label: '自動' },
   { mode: 'overview', label: '全体' },
   { mode: 'leader', label: '先頭' },
   { mode: 'horse', label: '選択馬' },
@@ -65,11 +64,13 @@ interface Props {
   renderActions?: (allFinished: boolean, skip: () => void) => ReactNode;
   /** 単勝人気（馬番−1 の順）。実況で使う */
   popularity?: readonly number[];
+  /** レース名と格（重賞の実況「〇〇、△△を制しました」に使う） */
+  race?: { name: string; grade: 'G1' | 'G2' | 'G3' | null };
 }
 
 
 /** レース観戦：トラッキング表示＋順位表・ラップ・テロップ */
-export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderActions, popularity }: Props) {
+export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderActions, popularity, race }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<RacePlayer | null>(null);
@@ -81,14 +82,13 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
     countdown: COUNTDOWN,
     slow: false,
   });
-  const [camera, setCamera] = useState<CameraMode>('auto');
+  const [camera, setCamera] = useState<CameraMode>('leader');
   const [follow, setFollow] = useState<number | null>(null);
   const [tab, setTab] = useState<Tab>('standings');
   const [showAll, setShowAll] = useState(false);
   const mode = useLayoutMode();
   const lite = useSettings((s) => s.lite);
   const showCommentary = useSettings((s) => s.commentary);
-  const voice = useSettings((s) => s.voice);
 
   // プレイヤーの生成。レイアウトが変わる（スマホを横にするなど）とコース図の要素が作り直されるので、
   // プレイヤーも作り直して、再生位置・倍速・再生中かどうかを引き継ぐ
@@ -186,18 +186,11 @@ export function RaceViewer({ result, eyebrow, highlight, renderStatus, renderAct
   const counting = state.countdown > 0;
 
   // 実況
-  const comments = useMemo(() => buildCommentary(result, { popularity, mine: highlight }), [result, popularity, highlight]);
+  const comments = useMemo(
+    () => buildCommentary(result, { popularity, mine: highlight, raceName: race?.name, grade: race?.grade }),
+    [result, popularity, highlight, race],
+  );
   const caption = counting ? [] : currentComments(comments, state.time, 2);
-  const latest = caption[caption.length - 1];
-  const spoken = useRef<number>(-1);
-  useEffect(() => {
-    if (!latest || latest.time === spoken.current) return;
-    const fresh = state.time - latest.time < 1;
-    spoken.current = latest.time;
-    // 読み上げは1倍速で再生中、新しく出た行だけ（シークで飛んだ先の行は読まない）
-    if (voice && state.playing && state.speed === 1 && fresh) speak(latest.text);
-  }, [latest, voice, state.playing, state.speed, state.time]);
-  useEffect(() => () => stopSpeaking(), []);
 
   // 先頭交代
   const changes = useMemo(() => leaderChanges(result), [result]);

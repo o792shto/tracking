@@ -14,7 +14,7 @@ describe('設定', () => {
       },
     });
     const a = createSettingsStore();
-    expect(a.getState()).toMatchObject({ lite: false, sound: false, commentary: true, voice: false });
+    expect(a.getState()).toMatchObject({ lite: false, sound: false, commentary: true });
     a.getState().setLite(true);
     a.getState().setSound(true);
     expect(createSettingsStore().getState()).toMatchObject({ lite: true, sound: true });

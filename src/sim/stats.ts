@@ -1,3 +1,4 @@
+import { PARAMS } from './params';
 import { simulateRace } from './engine';
 import { createRace, type CreateRaceOptions } from './horse';
 import { provisionalPopularity } from './rating';
@@ -20,6 +21,8 @@ export interface TimeSummary {
 }
 
 export interface BatchStats {
+  /** 2着に5馬身以上の差をつけた勝ちの割合 */
+  bigWinRate: number;
   races: number;
   /** 人気順（1番人気〜）ごとの勝率と3着内率 */
   byPopularity: { popularity: number; starts: number; winRate: number; top3Rate: number }[];
@@ -67,6 +70,7 @@ export function runBatch(races: number, seedStart = 1, options: CreateRaceOption
   const styleExpected = { ...styleStarts };
   const timeRows: Record<string, { win: number[]; last3f: number[] }> = {};
   const margins: number[] = [];
+  let bigWins = 0;
   const pace = { high: 0, middle: 0, slow: 0 };
   let longshotWins = 0;
   let slowStarts = 0;
@@ -98,6 +102,9 @@ export function runBatch(races: number, seedStart = 1, options: CreateRaceOption
     timeRows[key].win.push(result.finish[0].time);
     timeRows[key].last3f.push(result.finish[0].last3f);
     margins.push(result.finish[1].marginSec);
+    // 1・2着の差を馬身に（勝ち馬の平均速度で換算）
+    const lengths = (result.finish[1].marginSec * (setup.course.distance / result.finish[0].time)) / PARAMS.bodyLength;
+    if (lengths >= 5) bigWins++;
     pace[result.pace]++;
     for (const ev of result.events) {
       if (ev.kind === 'slowStart') slowStarts++;
@@ -135,6 +142,7 @@ export function runBatch(races: number, seedStart = 1, options: CreateRaceOption
     byStyle,
     times,
     medianWinMarginSec: sortedMargins[Math.floor(sortedMargins.length / 2)],
+    bigWinRate: bigWins / races,
     longshotWinRate: longshotWins / races,
     pace,
     slowStartPerRace: slowStarts / races,

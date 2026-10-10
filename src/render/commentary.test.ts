@@ -44,4 +44,28 @@ describe('実況', () => {
     const mid = lines[3].time;
     expect(currentComments(lines, mid, 2)).toEqual([lines[2], lines[3]]);
   });
+
+  it('1000m通過はタイムだけを言う（速い・遅いは言わない）', () => {
+    for (const r of races) {
+      for (const l of buildCommentary(r).filter((x) => x.kind === 'pace')) {
+        expect(l.text).not.toMatch(/ペース|流れ|飛ばし/);
+      }
+    }
+  });
+
+  it('重賞は「〇〇、△△を制しました」のような実況が入る', () => {
+    const r = races[2];
+    const winner = r.setup.entries[r.finish[0].number - 1].horse.name;
+    const lines = buildCommentary(r, { raceName: '天皇賞（秋）', grade: 'G1' });
+    expect(lines.some((l) => l.kind === 'result' && l.text.includes(winner) && l.text.includes('天皇賞（秋）'))).toBe(true);
+    expect(buildCommentary(r).some((l) => l.text.includes('制しました'))).toBe(false);
+  });
+
+  it('人気馬の位置を伝える', () => {
+    const r = races[3];
+    const popularity = r.setup.entries.map((_, i) => i + 1);
+    const lines = buildCommentary(r, { popularity });
+    const fav = r.setup.entries[0].horse.name;
+    expect(lines.some((l) => l.kind === 'position' && l.text.includes(fav) && /人気/.test(l.text))).toBe(true);
+  });
 });

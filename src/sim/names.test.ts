@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createRace } from './horse';
-import { NAME_BLOCKLIST, generateHorseName, nameVariety } from './names';
+import { generateHorseName, nameVariety } from './names';
 import { Rng } from './rng';
 
 describe('馬名', () => {
-  it('2〜9文字のカタカナで、よく知られた実在馬の名前は出ない', () => {
+  it('2〜9文字のカタカナで、実在の馬主の冠名で始まる名前は出ない', () => {
     const rng = new Rng(1);
     for (let i = 0; i < 20000; i++) {
       const name = generateHorseName(rng);
       expect(name).toMatch(/^[ァ-ヴー]{2,9}$/);
-      expect(NAME_BLOCKLIST.has(name)).toBe(false);
+      expect(name).not.toMatch(/^(サトノ|キタサン|メイショウ|ダノン|マイネル)/);
     }
   });
 

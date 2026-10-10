@@ -46,7 +46,7 @@ export class RacePlayer {
   private minFrameInterval = 0;
   private lastDraw = 0;
   private listeners = new Set<(s: PlayerState) => void>();
-  options: ViewOptions = { cameraMode: 'auto', followNumber: null, highlight: new Set() };
+  options: ViewOptions = { cameraMode: 'leader', followNumber: null, highlight: new Set() };
 
   constructor(canvas: HTMLCanvasElement, result: RaceResult) {
     this.view = new TrackView(canvas, result);

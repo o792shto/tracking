@@ -15,9 +15,9 @@ type Point = { x: number; y: number };
 
 /** 内ラチの外側に描くコース幅（m） */
 const TRACK_WIDTH = 24;
-/** 自動カメラ：序盤〜中盤で全体表示と先頭集団追従を切り替える周期（秒） */
-const AUTO_CYCLE = 14;
-const AUTO_OVERVIEW_PART = 7;
+/** 先頭追従・選択馬追従で映す前後の範囲（m）。選択馬はその馬に大きく寄る */
+const LEADER_SPAN = 45;
+const HORSE_SPAN = 14;
 /** 加速度を測る時間幅（秒） */
 const ACCEL_WINDOW = 0.4;
 /** 軌跡の長さ：速度がこれを超えた分 × TRAIL_PER_MPS (m) */
@@ -44,6 +44,8 @@ const INSET_MAX_WIDTH = 300;
 const INSET_MIN_WIDTH = 140;
 const INSET_BOTTOM_GAP = 64;
 
+/** 出遅れの札を出し始める時刻（秒）。ゲートが開く前（カウントダウン中）には出さない */
+const SLOW_START_TAG_FROM = 0.5;
 /** ゲートが開いて消えるまでの時間（秒） */
 const GATE_FADE = 0.5;
 /** レース中の出来事の札（出遅れ・掛かり・進路をなくした）と、出している時間（秒） */
@@ -128,7 +130,7 @@ export class TrackView {
     if (!log || this.width === 0) return;
     this.samples = sampleAt(log, t, this.samples);
     this.earlier = sampleAt(log, t - ACCEL_WINDOW, this.earlier);
-    const target = this.cameraTarget(t, options);
+    const target = this.cameraTarget(options);
     this.view = this.view ? approach(this.view, target, 3.2, frameDt) : target;
 
     this.lite = options.lite ?? false;
@@ -251,14 +253,16 @@ export class TrackView {
     ctx.textBaseline = 'middle';
     for (const ev of this.result.events) {
       const tag = EVENT_TAGS[ev.kind];
-      if (t < ev.time || t > ev.time + tag.span) continue;
+      // 出遅れは記録上はスタート時刻（0秒）。ゲートが開いて周りが出ていってから札を出す
+      const from = ev.kind === 'slowStart' ? Math.max(ev.time, SLOW_START_TAG_FROM) : ev.time;
+      if (t < from || t > from + tag.span) continue;
       const s = this.samples[ev.number - 1];
       if (!s || s.d >= this.result.setup.course.distance) continue;
       const p = this.worldToScreen(this.point(s.d, s.x));
       const w = ctx.measureText(tag.label).width + 10;
       const x = p.x;
       const y = p.y - radius - 12;
-      ctx.globalAlpha = Math.min(1, (ev.time + tag.span - t) / 0.5);
+      ctx.globalAlpha = Math.min(1, (from + tag.span - t) / 0.5);
       ctx.fillStyle = 'rgba(5, 12, 19, 0.85)';
       ctx.strokeStyle = tag.color;
       ctx.lineWidth = 1;
@@ -276,68 +280,29 @@ export class TrackView {
     }
   }
 
-  private cameraTarget(t: number, options: ViewOptions): CameraView {
+  private cameraTarget(options: ViewOptions): CameraView {
     const { width: w, height: h, samples } = this;
-    const { course } = this.result.setup;
-    const D = course.distance;
     const overview = fitRect(this.overviewRect, w, h);
     const order = runningOrder(samples);
-    const leader = samples[order[0]];
 
-    const groupAround = (centerIdx: number, span: number, pad: number) => {
+    const groupAround = (centerIdx: number, span: number, pad: number, maxScale: number) => {
       const c = samples[centerIdx];
       const pts = samples
         .filter((s) => Math.abs(s.d - c.d) < span)
         .map((s) => this.point(s.d, s.x));
       pts.push(this.point(c.d + span * 0.6, 0), this.point(c.d - span * 0.4, 0));
-      return fitRect(boundsOf(pts, pad), w, h, 0, 9);
+      return fitRect(boundsOf(pts, pad), w, h, 0, maxScale);
     };
 
     switch (options.cameraMode) {
       case 'overview':
         return overview;
       case 'leader':
-        return groupAround(order[0], 45, 10);
+        return groupAround(order[0], LEADER_SPAN, 10, 9);
       case 'horse': {
+        // 選択馬：その馬のまわりだけに寄る
         const idx = this.result.setup.entries.findIndex((e) => e.number === options.followNumber);
-        return idx >= 0 ? groupAround(idx, 30, 8) : overview;
-      }
-      case 'auto': {
-        if (leader.d >= D) {
-          // ゴール前後：ゴール線付近に寄せる
-          const near = samples
-            .filter((s) => s.d > D - 60)
-            .map((s) => this.point(Math.min(s.d, D + 60), s.x));
-          near.push(this.point(D + 20, 0), this.point(D - 30, TRACK_WIDTH * 0.6));
-          return fitRect(boundsOf(near, 8), w, h, 0, 9);
-        }
-        if (D - leader.d <= this.path.homeStretch) {
-          // 直線：ゴール線を画面に入れて固定気味にし、馬がゴールへ迫っていく動きを見せる。
-          // 先頭がゴールに近づくほど枠が縮んで寄っていく
-          const front = order
-            .slice(0, Math.max(5, Math.ceil(order.length / 2)))
-            .map((i) => samples[i])
-            .filter((s) => leader.d - s.d < 30);
-          const rear = Math.min(...front.map((s) => s.d));
-          const pts = front.map((s) => this.point(s.d, s.x));
-          // 前方に余白（ゴールが近づいたらゴール線で止める）、後ろにも少し余白
-          const ahead = Math.min(D + 12, leader.d + 70);
-          pts.push(this.point(ahead, 0), this.point(ahead, TRACK_WIDTH * 0.5), this.point(rear - 20, 0));
-          return fitRect(boundsOf(pts, 6), w, h, 0, 9);
-        }
-        if (leader.d >= this.path.fourthCornerStart) {
-          // 4コーナー以降：先頭〜中団に寄ってズーム
-          const front = order.slice(0, Math.max(5, Math.ceil(order.length / 2)));
-          const pts = front
-            .map((i) => samples[i])
-            .filter((s) => leader.d - s.d < 35)
-            .map((s) => this.point(s.d, s.x));
-          pts.push(this.point(leader.d + 25, 0));
-          return fitRect(boundsOf(pts, 10), w, h, 0, 8);
-        }
-        const phase = t % AUTO_CYCLE;
-        if (t < 6 || phase >= AUTO_OVERVIEW_PART) return groupAround(order[0], 55, 12);
-        return overview;
+        return idx >= 0 ? groupAround(idx, HORSE_SPAN, 4, 16) : overview;
       }
     }
   }

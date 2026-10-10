@@ -40,6 +40,10 @@ describe(`${RACES}レースの統計`, () => {
     }
   });
 
+  it('5馬身以上の大差勝ちはまれ（騎手がゴール前で流すため）', () => {
+    expect(stats.bigWinRate).toBeLessThan(0.05);
+  });
+
   it('ペースはハイ・平均・スローがそれぞれ一定数ある', () => {
     for (const p of ['high', 'middle', 'slow'] as const) {
       expect(stats.pace[p] / RACES, p).toBeGreaterThan(0.1);

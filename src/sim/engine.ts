@@ -26,6 +26,8 @@ interface Runner {
   d: number;
   /** いまいる道筋の区間 */
   piece: number;
+  /** 先頭で抜け出したとき、追うのをやめる2着馬との差（m） */
+  easeGap: number;
   x: number;
   v: number;
   stamina: number;
@@ -68,6 +70,8 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
   const D = course.distance;
   const dt = P.dt;
   const rng = new Rng(setup.seed).fork(2);
+  // 騎手の流し方は別の乱数で決める（ほかの乱数の並びを変えないように）
+  const easeRng = new Rng(setup.seed).fork(13);
   const invBurnExp = 1 / (P.burnExponent - 1);
   const kickFade = P.kickFade[course.surface] * Math.pow(1600 / D, P.kickFadeDistanceExp);
   const dashScale = P.earlyDashSurface[course.surface] * Math.pow(1200 / D, P.earlyDashDistanceExp);
@@ -99,6 +103,7 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       ab,
       d: 0,
       piece: 0,
+      easeGap: easeRng.range(...P.easeGapLengths) * P.bodyLength,
       x: 0.5 + i * 1.0,
       v: 0,
       stamina: ab.staminaPool,
@@ -267,6 +272,23 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       if (piece.kIn !== 0 && !finished) {
         const radius = 1 / Math.abs(piece.kIn) + (piece.kIn > 0 ? r.x : -r.x);
         vTarget = Math.min(vTarget, Math.sqrt(P.cornerLateralAccel * radius));
+      }
+
+      // 大きく抜け出した先頭馬は、ゴール前で追うのをやめる
+      if (!finished && r === leader && remaining < P.easeFrom) {
+        let second: Runner | null = null;
+        for (let p = pos[i] + 1; p < n; p++) {
+          const o = runners[order[p]];
+          if (Number.isNaN(o.finishTime)) {
+            second = o;
+            break;
+          }
+        }
+        const easeGap = r.easeGap;
+        if (second && r.d - second.d > easeGap) {
+          const eased = second.v + P.easeGain * (easeGap - (r.d - second.d));
+          vTarget = Math.min(vTarget, Math.max(second.v - P.easeMaxDrop, eased));
+        }
       }
 
       // 前が壁
