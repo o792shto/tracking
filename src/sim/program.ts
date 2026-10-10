@@ -96,46 +96,32 @@ export function nearestStandardDistance(surface: Surface, distance: number, venu
 }
 
 /**
- * 重賞をゲームのメインレースにする。
- * - 2歳戦は G1 以外をすべて「オープン」に置き換える
- * - G3 以下（置き換えたオープンを含む）で標準距離以外のもの、またはその場で実在しない標準距離のものは
- *   「オープン」にし、距離もその場で実在する最も近い標準距離にする
+ * 重賞をゲームのレースにする。レース名・格・距離・条件は本来のまま（置き換えはしない）
  */
 export function mainRaceOf(g: GradedRace): Omit<ProgramRace, 'no' | 'runners'> {
-  let raceClass: RaceClass = g.grade;
-  let name = g.name;
-  let distance = g.distance;
-  if (g.age === '2' && g.grade !== 'G1') {
-    raceClass = 'open';
-    name = CLASS_LABEL.open;
-  }
-  const standard = venueDistances(g.venue, g.surface).includes(distance);
-  if ((raceClass === 'G3' || raceClass === 'open') && !standard) {
-    raceClass = 'open';
-    name = CLASS_LABEL.open;
-    distance = nearestStandardDistance(g.surface, distance, g.venue);
-  }
-  return { raceClass, name, surface: g.surface, distance, age: g.age, fillies: g.fillies };
+  return { raceClass: g.grade, name: g.name, surface: g.surface, distance: g.distance, age: g.age, fillies: g.fillies };
 }
 
-type Slot = { raceClass: RaceClass; surface: Surface; age: AgeCondition };
+export type Slot = { raceClass: RaceClass; surface: Surface; age: AgeCondition };
 
 /**
- * 典型的な1日の番組（11Rは重賞）。上半期は3歳戦と古馬戦、6月から2歳戦が始まり古馬は3歳以上になる。
+ * 典型的な1日の番組（11Rは重賞）。上半期は3歳戦と古馬戦、6月から2歳の新馬戦が始まり古馬は3歳以上になる。
+ * クラスの数は名簿の馬の数（クラスごとの頭数）に合わせた。
  * 実際の番組表の再現ではなく、クラスの並び方を真似たテンプレート。
  */
-function undercard(month: number): Slot[] {
+export function undercard(month: number): Slot[] {
   if (month >= 9) {
     return [
       { raceClass: 'maiden', surface: 'dirt', age: '2' },
       { raceClass: 'maiden', surface: 'turf', age: '2' },
       { raceClass: '1win', surface: 'dirt', age: '3up' },
-      { raceClass: 'maiden', surface: 'turf', age: '2' },
-      { raceClass: 'newcomer', surface: 'turf', age: '2' },
-      { raceClass: '1win', surface: 'dirt', age: '3up' },
+      { raceClass: '1win', surface: 'turf', age: '2' },
+      // 新馬戦は10月まで（それ以降はほとんどの2歳がデビューしている）
+      { raceClass: month <= 10 ? 'newcomer' : 'maiden', surface: 'turf', age: '2' },
       { raceClass: '1win', surface: 'turf', age: '3up' },
       { raceClass: '2win', surface: 'dirt', age: '3up' },
       { raceClass: '2win', surface: 'turf', age: '3up' },
+      { raceClass: '3win', surface: 'dirt', age: '3up' },
       { raceClass: '3win', surface: 'turf', age: '3up' },
       { raceClass: '2win', surface: 'dirt', age: '3up' },
     ];
@@ -145,32 +131,30 @@ function undercard(month: number): Slot[] {
     { raceClass: 'maiden', surface: 'dirt', age: '3' },
     { raceClass: 'maiden', surface: 'turf', age: '3' },
     { raceClass: 'maiden', surface: 'dirt', age: '3' },
-    { raceClass: 'maiden', surface: 'turf', age: '3' },
     month >= 6
       ? { raceClass: 'newcomer', surface: 'turf', age: '2' }
-      : month <= 2
-        ? { raceClass: 'newcomer', surface: 'dirt', age: '3' }
-        : { raceClass: 'maiden', surface: 'dirt', age: '3' },
+      : { raceClass: 'maiden', surface: 'turf', age: '3' },
     { raceClass: '1win', surface: 'dirt', age: '3' },
-    { raceClass: '1win', surface: 'turf', age: older },
-    { raceClass: '1win', surface: 'dirt', age: older },
     { raceClass: '1win', surface: 'turf', age: '3' },
+    { raceClass: '1win', surface: 'turf', age: older },
+    { raceClass: '2win', surface: 'dirt', age: older },
+    { raceClass: '2win', surface: 'turf', age: older },
     { raceClass: '3win', surface: 'turf', age: older },
     { raceClass: '2win', surface: 'dirt', age: older },
   ];
 }
 
 /** 出走頭数の幅（クラスごと） */
-const RUNNERS: Record<RaceClass, [number, number]> = {
-  newcomer: [10, 16],
-  maiden: [14, 18],
+export const RUNNERS: Record<RaceClass, [number, number]> = {
+  newcomer: [8, 14],
+  maiden: [12, 16],
   '1win': [10, 16],
   '2win': [10, 16],
   '3win': [9, 15],
   open: [9, 16],
-  G3: [12, 18],
-  G2: [10, 18],
-  G1: [14, 18],
+  G3: [11, 18],
+  G2: [9, 16],
+  G1: [15, 18],
 };
 
 export interface RaceDay {

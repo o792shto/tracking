@@ -338,7 +338,7 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
         } else if (r.blockedBy < 0 && r.x > 0.6) {
           const inside = Math.max(0.5, r.x - P.laneWidth);
           // 直線で仕掛けている馬は内に切り込まない
-          if (!r.spurting && laneClear(i, inside, 4.0, 3.0)) r.targetX = inside;
+          if (!r.spurting && laneClear(i, inside, P.tuckAhead, P.tuckBehind)) r.targetX = inside;
         }
       }
       const dx = r.targetX - r.x;

@@ -3,7 +3,7 @@ export const BETTING = {
   /** 控除率（JRAの控除率に合わせた） */
   takeout: { win: 0.2, place: 0.2, quinella: 0.225, wide: 0.225, exacta: 0.25, trio: 0.25, trifecta: 0.275 },
   /** 見た目の強さ（m/s 換算）から勝率を出すソフトマックスの温度。シミュレーション結果に合わせて決めた */
-  strengthTemperature: 0.11,
+  strengthTemperature: 0.1,
   /** 大衆の偏り：勝率の何乗に比例して票が入るか（1より大きいと人気馬に票が寄る） */
   favoriteBias: 1.0,
   /** 前走で好走した馬への票の上乗せ（1着で +この割合、3着で半分程度） */

@@ -5,7 +5,7 @@ import { createRace } from './horse';
 import { createMeeting } from './meeting';
 import { horseProfiles } from './profile';
 import { DAYS_PER_YEAR, mainRaceOf, nearestStandardDistance, raceDay, raceLevel } from './program';
-import { racePath } from './racePath';
+import { findStart, racePath } from './racePath';
 import { lapMarks } from './result';
 
 const byName = (name: string) => mainRaceOf(GRADED_RACES_2026.find((g) => g.name === name)!);
@@ -28,30 +28,15 @@ describe('重賞の置き換え', () => {
     expect(mains.size).toBe(97);
   });
 
-  it('2歳戦は G1 以外をオープンにする', () => {
-    expect(byName('サウジアラビアRC')).toMatchObject({ raceClass: 'open', name: 'オープン', distance: 1600 });
-    expect(byName('デイリー杯2歳S')).toMatchObject({ raceClass: 'open', name: 'オープン' });
-    expect(byName('阪神JF')).toMatchObject({ raceClass: 'G1', name: '阪神JF' });
-    expect(byName('ホープフルS')).toMatchObject({ raceClass: 'G1', distance: 2000 });
-  });
-
-  it('G3以下で標準距離以外はオープンにして、近い標準距離に変える（等距離は長い方）', () => {
-    expect(byName('きさらぎ賞')).toMatchObject({ raceClass: 'open', surface: 'turf', distance: 2000 });
-    expect(byName('阪急杯')).toMatchObject({ raceClass: 'open', distance: 1600 });
-    expect(byName('ダイヤモンドS')).toMatchObject({ raceClass: 'open', distance: 2400 });
-    expect(byName('根岸S')).toMatchObject({ raceClass: 'open', surface: 'dirt', distance: 1600 });
-    // 京都ダートで実在する標準距離は1200mと1800m
-    expect(byName('ユニコーンS')).toMatchObject({ raceClass: 'open', surface: 'dirt', distance: 1800 });
-    expect(byName('京王杯2歳S')).toMatchObject({ raceClass: 'open', distance: 1600 });
-    expect(byName('東スポ杯2歳S')).toMatchObject({ raceClass: 'open', distance: 2000 });
-  });
-
-  it('G1・G2 と標準距離の G3 はそのまま', () => {
-    expect(byName('中山記念')).toMatchObject({ raceClass: 'G2', distance: 1800 });
-    expect(byName('有馬記念')).toMatchObject({ raceClass: 'G1', distance: 2500 });
-    expect(byName('ステイヤーズS')).toMatchObject({ raceClass: 'G2', distance: 3600 });
-    expect(byName('シリウスS')).toMatchObject({ raceClass: 'G3', surface: 'dirt', distance: 2000 });
-    expect(byName('中山金杯')).toMatchObject({ raceClass: 'G3', name: '中山金杯' });
+  it('重賞はすべて本来の格・レース名・距離のまま（オープンへの置き換えはしない）', () => {
+    for (const g of GRADED_RACES_2026) {
+      expect(mainRaceOf(g)).toMatchObject({ raceClass: g.grade, name: g.name, surface: g.surface, distance: g.distance });
+      // どの重賞も、その競馬場に発走地点がある
+      expect(findStart(g.venue, g.surface, g.distance), `${g.name}`).toBeDefined();
+    }
+    expect(byName('サウジアラビアRC')).toMatchObject({ raceClass: 'G3', name: 'サウジアラビアRC' });
+    expect(byName('きさらぎ賞')).toMatchObject({ raceClass: 'G3', distance: 1800 });
+    expect(byName('ダイヤモンドS')).toMatchObject({ raceClass: 'G3', distance: 3400 });
   });
 
   it('標準距離への寄せ方', () => {

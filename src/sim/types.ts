@@ -63,6 +63,24 @@ export interface Horse {
   bestDistance: number;
   /** 馬場適性（1.0 が最良、0.97 程度まで） */
   surfaceAptitude: Record<Surface, number>;
+  /** 性別と年齢（名簿の馬のみ。表示用） */
+  sex?: 'colt' | 'filly';
+  age?: number;
+}
+
+/** 出馬表に出す過去のレース1走分 */
+export interface PastRun {
+  rank: number;
+  runners: number;
+  surface: Surface;
+  distance: number;
+  /** 名簿の馬の実際の成績のとき：レース名・競馬場・格・日付 */
+  race?: string;
+  venue?: string;
+  grade?: 'G1' | 'G2' | 'G3' | null;
+  year?: number;
+  month?: number;
+  day?: number;
 }
 
 export interface Entry {
@@ -71,6 +89,8 @@ export interface Entry {
   /** 枠番（1〜8） */
   frame: number;
   horse: Horse;
+  /** 名簿の馬の近走（新しい順）。なければ出馬表の近走は作り物 */
+  history?: PastRun[];
   /** 当日の調子（0.985〜1.015 程度、プレイヤーには非公開） */
   form: number;
 }

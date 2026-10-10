@@ -3,15 +3,26 @@ import { Rng } from './rng';
 import type { RaceSetup } from './types';
 
 /**
- * 当日の調子を除いた「見た目の強さ」。値が大きいほど強い。
- * 段階4でオッズ（大衆の仮想投票）を作るときの土台にする。
+ * 当日の調子を除いた「見た目の強さ」（m/s 換算）。値が大きいほど強い。オッズ（大衆の投票）の土台にする。
+ * 重みはシミュレーションの着順（1〜3着）に条件付きロジットを当てはめて決めた（名簿の馬の約1100レース）。
+ * 巡航速度を1として、末脚 0.28・スタミナの余裕 1.9（足りないぶんは 4）・先行 +0.1・逃げ +0.06・外枠 -0.03
  */
 export function apparentStrength(setup: RaceSetup): number[] {
-  return setup.entries.map((entry) => {
+  const n = setup.entries.length;
+  return setup.entries.map((entry, i) => {
     const ab = effectiveAbility(entry, setup.course, false);
     const need = setup.course.distance / ab.cruise;
-    const staminaMargin = ab.staminaPool / need - 1;
-    return ab.cruise + 0.2 * (ab.top - ab.cruise) + 2.0 * Math.min(staminaMargin, 0.1);
+    const margin = ab.staminaPool / need - 1;
+    const style = entry.horse.style;
+    return (
+      ab.cruise +
+      0.28 * (ab.top - ab.cruise) +
+      1.9 * Math.min(Math.max(margin, 0), 0.3) +
+      4 * Math.min(margin, 0) -
+      1.6 * (ab.burnFactor - 1) +
+      (style === 'senko' ? 0.1 : style === 'nige' ? 0.06 : 0) -
+      0.03 * (i / n)
+    );
   });
 }
 
