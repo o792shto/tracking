@@ -111,9 +111,20 @@ export function MeetingTop() {
                   </span>
                 )}
                 {status === 'next' && (
-                  <button type="button" className="primary" onClick={() => go('card')}>
-                    {placed.length ? `購入済み ${placed.length}点・出馬表へ` : '出馬表・馬券購入'}
-                  </button>
+                  <span className="next-actions">
+                    <button type="button" className="primary" onClick={() => go('card')}>
+                      {placed.length ? `購入済み ${placed.length}点・出馬表へ` : '出馬表・馬券購入'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const r = runQuietly(i);
+                        settleRace(r.payouts, r.finishOrder, r.venue);
+                      }}
+                    >
+                      結果だけ見る
+                    </button>
+                  </span>
                 )}
                 {status === 'later' && <span className="muted">発売前</span>}
               </span>

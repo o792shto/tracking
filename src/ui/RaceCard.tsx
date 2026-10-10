@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BETTING,
   BET_TYPE_LABEL,
   BET_TYPE_PICKS,
   expectedReturn,
   quinellaKey,
+  settle,
   type Bet,
   type BetType,
 } from '../betting';
-import { CONDITION_LABEL, STYLE_LABEL, SURFACE_LABEL, formatPastRun } from '../sim';
+import { CONDITION_LABEL, STYLE_LABEL, SURFACE_LABEL, formatPastRun, simulateRace } from '../sim';
 import { frameColor } from '../render';
 import { placedTotal, useGame } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
@@ -32,6 +33,8 @@ export function RaceCard() {
   const buy = useGame((s) => s.buy);
   const cancel = useGame((s) => s.cancel);
   const go = useGame((s) => s.go);
+  const settleRace = useGame((s) => s.settle);
+  const panelRef = useRef<HTMLElement>(null);
 
   const [board, setBoard] = useState(0);
   const [type, setType] = useState<BetType>('win');
@@ -53,6 +56,13 @@ export function RaceCard() {
     }, BOARD_INTERVAL);
     return () => window.clearInterval(id);
   }, [market]);
+
+  // 購入のお知らせは少しで消す
+  useEffect(() => {
+    if (!message) return;
+    const id = window.setTimeout(() => setMessage(null), 3000);
+    return () => window.clearTimeout(id);
+  }, [message]);
 
   const odds = market.boards[board];
   const final = board === market.boards.length - 1;
@@ -88,6 +98,18 @@ export function RaceCard() {
     }
     setMessage(`${BET_TYPE_LABEL[draft.type]} ${draft.selection.join('-')} を ${formatCoins(draft.stake)}コイン購入しました`);
     setSelection([]);
+  };
+
+  /** 観戦せずに走らせて、結果画面へ（買った馬券は結果どおりに精算） */
+  const resultOnly = () => {
+    const result = simulateRace(race.setup, { record: false });
+    const order = result.finish.map((f) => f.number);
+    settleRace(settle(market, order), order, meeting.venue);
+  };
+  const start = () => {
+    // 効果音がオンなら、このタップで音を出せる状態にしておく（ブラウザの制限）
+    unlockAudio();
+    go('watch');
   };
 
   const ticketOdds = (bet: Bet) => {
@@ -191,7 +213,7 @@ export function RaceCard() {
           </table>
         </div>
 
-        <aside className="bet-panel" aria-label="馬券購入">
+        <aside className="bet-panel" aria-label="馬券購入" ref={panelRef}>
           <h2>馬券を買う</h2>
           <div className="seg-group" role="group" aria-label="券種">
             {BET_TYPES.map((t) => (
@@ -282,19 +304,57 @@ export function RaceCard() {
           )}
           <p className="muted small">あと{formatCoins(Math.max(0, remainingLimit))}コインまで買えます。払い戻しは確定オッズで計算します。</p>
 
-          <button
-            type="button"
-            className="start wide"
-            onClick={() => {
-              // 効果音がオンなら、このタップで音を出せる状態にしておく（ブラウザの制限）
-              unlockAudio();
-              go('watch');
-            }}
-          >
+          <button type="button" className="start wide" onClick={start}>
             {placed.length ? '発走する' : '馬券を買わずに観戦する'}
+          </button>
+          <button type="button" className="wide result-only" onClick={resultOnly}>
+            観戦せずに結果だけ見る
           </button>
         </aside>
       </div>
+
+      {/* スマホ：馬を選んだら画面下に購入バー（出馬表の下まで戻らなくても買える） */}
+      {(selection.length > 0 || placed.length > 0) && (
+        <div className="buy-bar" role="region" aria-label="購入">
+          {selection.length > 0 ? (
+            <>
+              <div className="buy-what">
+                <span className="buy-type">{BET_TYPE_LABEL[type]}</span>
+                <b>{[...selection].sort((a, b) => a - b).join('-')}</b>
+                {!ready && <small>あと{picks - selection.length}頭</small>}
+                {preview && <small>想定 {formatRange(preview.min, preview.max)}</small>}
+              </div>
+              <div className="buy-stake">
+                <button type="button" onClick={() => setStake((s) => Math.max(BETTING.unit, s - BETTING.unit))} aria-label="100減らす">
+                  −
+                </button>
+                <span>{formatCoins(stake)}</span>
+                <button type="button" onClick={() => setStake((s) => s + BETTING.unit)} aria-label="100増やす">
+                  ＋
+                </button>
+              </div>
+              <button type="button" className="primary" disabled={!ready} onClick={submit}>
+                購入
+              </button>
+              <button type="button" className="buy-more" onClick={() => panelRef.current?.scrollIntoView({ behavior: 'smooth' })}>
+                券種
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="buy-what">
+                <span className="buy-type">購入済み</span>
+                <b>{placed.length}点</b>
+                <small>{formatCoins(total)}コイン</small>
+              </div>
+              <button type="button" className="start-small" onClick={start}>
+                発走する
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {message && <p className="buy-toast" role="status">{message}</p>}
     </main>
   );
 }
