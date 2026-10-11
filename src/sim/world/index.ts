@@ -4,3 +4,5 @@ export { WORLD, ageOf, ageOffset, currentStats, rating, aptitudeFit } from './ho
 export { weekCard, raceSetup, historyOf, VISIBLE_RACES, type WeekCard, type CardRace } from './schedule';
 export { advanceWeek, createWorld, raceKey, raceFinish, tierLabel, formatPrize, firstPrize, PRIZE, PRIZE_SHARE, EVENTS, type AdvanceOptions } from './advance';
 export { storiesFor, storyOf, winStory, crownPreview, TRIPLE_CROWN, FILLIES_CROWN, type HorseStory } from './story';
+export { OFFSCREEN_G1, SUMMER_RACES, type OffscreenRace } from './offscreen';
+export { syutoku } from './prize';

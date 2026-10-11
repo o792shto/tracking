@@ -92,7 +92,8 @@ export function undercard(month: number): Slot[] {
       { raceClass: '1win', surface: 'turf', age: '3up' },
       { raceClass: '1win', surface: 'dirt', age: '3up' },
       { raceClass: '2win', surface: 'turf', age: '3up' },
-      { raceClass: '3win', surface: 'dirt', age: '3up' },
+      // オープン特別（9R）。オープン馬が重賞の合間に使う
+      { raceClass: 'open', surface: month % 2 === 0 ? 'dirt' : 'turf', age: '3up' },
       { raceClass: '3win', surface: 'turf', age: '3up' },
       { raceClass: '2win', surface: 'dirt', age: '3up' },
     ];
@@ -109,7 +110,8 @@ export function undercard(month: number): Slot[] {
     { raceClass: '1win', surface: 'turf', age: '3' },
     { raceClass: '1win', surface: 'turf', age: older },
     { raceClass: '2win', surface: 'dirt', age: older },
-    { raceClass: '2win', surface: 'turf', age: older },
+    // オープン特別（9R）。オープン馬が重賞の合間に使う
+    { raceClass: 'open', surface: month % 2 === 0 ? 'dirt' : 'turf', age: older },
     { raceClass: '3win', surface: 'turf', age: older },
     { raceClass: '2win', surface: 'dirt', age: older },
   ];

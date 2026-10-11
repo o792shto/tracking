@@ -48,6 +48,8 @@ const g1Prev = new Map<string, Map<string, number>>();
 const layoff = acc();
 const layoffPops: number[] = [];
 const promoted = acc();
+/** G1 の出走馬の重賞実績（古馬 G1・2〜3歳 G1）：出走・重賞勝ち・重賞勝ちか近走の重賞3着以内 */
+const g1Cred = { older: [0, 0, 0], young: [0, 0, 0] };
 const tierCounts: { year: number; counts: Record<Tier, number> }[] = [];
 
 const popKey = (p: number) => (p <= 10 ? String(p) : '11+');
@@ -124,6 +126,10 @@ for (let k = 0; k < YEARS * WEEKS_PER_YEAR; k++) {
         if (h.tier === 'open') intervalBins.graded.set(b, (intervalBins.graded.get(b) ?? 0) + 1);
       }
       if (r.grade === 'G1') {
+        const c = r.program.age === '2' || r.program.age === '3' ? g1Cred.young : g1Cred.older;
+        c[0]++;
+        if (h.graded.length > 0) c[1]++;
+        if (h.graded.length > 0 || h.runs.slice(-4).some((x) => x.grade && x.rank <= 3)) c[2]++;
         const m = g1Prev.get(r.program.name) ?? new Map<string, number>();
         const prev = last ? (last.abroad ? `${last.race}（海外）` : last.race) : '（初出走）';
         m.set(prev, (m.get(prev) ?? 0) + 1);
@@ -131,7 +137,7 @@ for (let k = 0; k < YEARS * WEEKS_PER_YEAR; k++) {
       }
     }
   }
-  for (const a of card.abroad) {
+  for (const a of [...card.abroad, ...card.offscreen]) {
     for (const id of a.horseIds) {
       const key = `${id}-${year}`;
       startsByHorseYear.set(key, (startsByHorseYear.get(key) ?? 0) + 1);
@@ -267,6 +273,8 @@ add('単勝回収率（全体）', '約75〜80%（70〜85%）', pct(total.winRet
 }
 add('1倍台の1番人気（G1） 勝率', '40〜50%（35〜55%）', pct(g1Fav1x.win, g1Fav1x.n), 35, 55, '%', `該当 ${g1Fav1x.n}レース`);
 add('年間出走数（古馬重賞級）', '4〜7走（3〜8）', mean(startsPerYear.olderGraded), 3, 8, '走（平均）');
+add('古馬G1の出走馬 重賞勝ち馬の割合', '大半（参考：75%以上）', pct(g1Cred.older[1], g1Cred.older[0]), 75, 100);
+add('古馬G1の出走馬 重賞勝ちか近走の重賞3着以内', '大半（参考：90%以上）', pct(g1Cred.older[2], g1Cred.older[0]), 90, 100);
 add('出走間隔（重賞級） 中1週以下', '5%未満', gradedShort, 0, 5);
 add('出走間隔（重賞級） 中2〜9週の割合', '中心（参考：50%以上）', gradedCore, 50, 100);
 
@@ -341,6 +349,17 @@ L(`### 1頭あたりの年間出走数`);
 L();
 L(`- 全馬: 平均 ${f1(mean(startsPerYear.all))}走（中央値 ${median(startsPerYear.all)}）`);
 L(`- 古馬重賞級（年初に4歳以上のオープン馬）: 平均 ${f1(mean(startsPerYear.olderGraded))}走（中央値 ${median(startsPerYear.olderGraded)}、最大 ${Math.max(0, ...startsPerYear.olderGraded)}）`);
+L();
+L('### G1の出走馬の重賞実績');
+L();
+L('| G1 | 出走 | 重賞勝ち馬 | 重賞勝ちか近走の重賞3着以内 |');
+L('| --- | --- | --- | --- |');
+for (const [name, c] of [
+  ['古馬G1', g1Cred.older],
+  ['2〜3歳G1', g1Cred.young],
+] as const) {
+  L(`| ${name} | ${c[0]} | ${f1(pct(c[1], c[0]))}% | ${f1(pct(c[2], c[0]))}% |`);
+}
 L();
 L('### G1の前走（上位5つ）');
 L();

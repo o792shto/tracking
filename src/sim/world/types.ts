@@ -17,6 +17,8 @@ export interface RunRecord {
   venue: Venue | string;
   /** 海外のレース */
   abroad?: boolean;
+  /** 画面に出ない国内のレース（夏競馬・中京の G1） */
+  offscreen?: boolean;
   /** レース名（重賞は名前、それ以外は「3歳未勝利」のような条件） */
   race: string;
   grade: Grade | null;
@@ -85,7 +87,7 @@ export interface WorldHorse {
   retired: { serial: number; reason: RetireReason } | null;
 }
 
-export type NewsKind = 'summer' | 'injury' | 'retire' | 'debut' | 'award' | 'record' | 'abroad';
+export type NewsKind = 'summer' | 'injury' | 'retire' | 'debut' | 'award' | 'record' | 'abroad' | 'offscreen';
 
 export interface NewsItem {
   /** 通算の週 */
@@ -102,7 +104,10 @@ export interface GradedResult {
   week: number;
   name: string;
   grade: Grade;
-  venue: Venue;
+  /** 競馬場（4場以外のレースはその競馬場の名前） */
+  venue: Venue | string;
+  /** 日付（4場以外のレースだけ。4場のレースは週から分かる） */
+  date?: { month: number; day: number };
   /** 1〜3着の馬（id と名前） */
   top3: { id: number; name: string }[];
   time: number;

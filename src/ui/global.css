@@ -26,6 +26,10 @@
   --caption-shadow: 0 1px 2px #000;
   --trouble: #ffb4b6;
   --keen: #f0b46a;
+  /** 着順の色（1着・2着・3着） */
+  --rank1: #ffd166;
+  --rank2: #6fa8ff;
+  --rank3: #ff7b7f;
 }
 /* ライトモード（設定で切り替え）。明るい紙の上に、同じ配置のデータ */
 :root[data-theme='light'] {
@@ -53,6 +57,9 @@
   --caption-shadow: none;
   --trouble: #c0353b;
   --keen: #b26a10;
+  --rank1: #a86b00;
+  --rank2: #1f5fd1;
+  --rank3: #c62f35;
 }
 html,
 body,
@@ -2884,4 +2891,30 @@ button.link {
   margin-right: 4px;
   color: var(--goal);
   font-weight: 700;
+}
+
+/* 近走の着順の色：1着 金・2着 青・3着 赤 */
+.entry-table .recent .rank-1,
+.data-table tr.rank-1 .rank {
+  color: var(--rank1);
+  font-weight: 700;
+}
+.entry-table .recent .rank-2,
+.data-table tr.rank-2 .rank {
+  color: var(--rank2);
+  font-weight: 700;
+}
+.entry-table .recent .rank-3,
+.data-table tr.rank-3 .rank {
+  color: var(--rank3);
+  font-weight: 700;
+}
+.data-table tr.rank-1 td:first-child {
+  box-shadow: inset 3px 0 0 var(--rank1);
+}
+.data-table tr.rank-2 td:first-child {
+  box-shadow: inset 3px 0 0 var(--rank2);
+}
+.data-table tr.rank-3 td:first-child {
+  box-shadow: inset 3px 0 0 var(--rank3);
 }

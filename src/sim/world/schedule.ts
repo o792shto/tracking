@@ -5,8 +5,10 @@ import { Rng, hashSeed } from '../rng';
 import { type Entry, type PastRun, type RaceSetup, type Surface, type TrackCondition } from '../types';
 import { WEEKS_PER_YEAR, weekOf, type RaceWeek } from './calendar';
 import { ABROAD, overseasRacesOf, type OverseasRace } from './overseas';
+import { OFFSCREEN, offscreenEligible, offscreenG1Of, type OffscreenRace } from './offscreen';
 import { ageOf, aptitudeFit, currentStats, rating, simHorse } from './horses';
 import { BALANCE, PREP_ROUTES } from '../balance';
+import { syutoku } from './prize';
 import type { RunRecord, Tier, World, WorldHorse } from './types';
 
 /** 観戦できるレース（10R・11R・12R） */
@@ -34,6 +36,8 @@ export interface WeekCard {
   races: CardRace[];
   /** 海外のレースに遠征する日本馬（top はその週の日本の現役トップの総合力） */
   abroad: { race: OverseasRace; horseIds: number[]; top: number }[];
+  /** 画面に出ない国内の G1（中京）の出走馬 */
+  offscreen: { race: OffscreenRace; horseIds: number[] }[];
 }
 
 /** 年の進み具合（0〜1）。週の番号から */
@@ -105,6 +109,11 @@ export const PRIORITY_TRIALS: Record<string, readonly (readonly [string, number]
   ],
   NHKマイルC: [['ニュージーランドT', 3]],
 };
+
+/** 重賞の実績（重賞勝ちか、近4走の重賞3着以内）があるか */
+export function hasGradedCredit(h: WorldHorse): boolean {
+  return h.graded.length > 0 || h.runs.slice(-4).some((r) => r.grade && r.rank <= 3);
+}
 
 /** その年の前哨戦で優先出走権を取っているか */
 export function hasPriority(h: WorldHorse, g1: string, year: number): boolean {
@@ -234,24 +243,29 @@ export function weekCard(world: World): WeekCard {
     aptitudeFit(h, g.surface, g.distance) > -2.5 &&
     g1DistanceOk(h, g);
   /** これからの G1 それぞれの、賞金で出走できる目安（出走頭数番目の賞金） */
+  // 収得賞金（勝ち鞍を重く見る）はこの週の間変わらないので先に計算しておく
+  const money = new Map<number, number>();
+  for (const h of active) money.set(h.id, syutoku(h));
   const cutoff = new Map<string, number>();
   for (const { race: g } of g1Ahead) {
     if (cutoff.has(g.name)) continue;
     const earnings = active
       .filter((h) => wantsG1(h, g) && !hasPriority(h, g.name, year))
-      .map((h) => h.earnings)
+      .map((h) => money.get(h.id)!)
       .sort((a, b) => b - a);
     cutoff.set(g.name, earnings[Math.min(earnings.length - 1, g.runners - 1)] ?? 0);
   }
   /**
-   * 目標の G1 が何週先か（目標がなければ null）。賞金が足りている馬と、優先出走権を取った馬だけが G1 を目標にする
+   * 目標の G1 が何週先か（目標がなければ null）。賞金が足りている馬（出走頭数番目の馬より多い）と、
+   * 優先出走権を取った馬だけが G1 を目標にする
    * （賞金が足りない馬は前哨戦で賞金や権利を取りにいく）
    */
   const targetCache = new Map<number, { weeks: number; name: string } | null>();
   const g1Target = (h: WorldHorse): { weeks: number; name: string } | null => {
     if (targetCache.has(h.id)) return targetCache.get(h.id)!;
     const hit = g1Ahead.find(
-      ({ race: g }) => wantsG1(h, g) && (hasPriority(h, g.name, year) || (h.earnings > 0 && h.earnings >= (cutoff.get(g.name) ?? Infinity))),
+      ({ race: g }) =>
+        wantsG1(h, g) && (hasPriority(h, g.name, year) || money.get(h.id)! > (cutoff.get(g.name) ?? Infinity)),
     );
     const target = hit ? { weeks: hit.weeks, name: hit.race.name } : null;
     targetCache.set(h.id, target);
@@ -265,7 +279,9 @@ export function weekCard(world: World): WeekCard {
   const skipsForG1 = (h: WorldHorse, race: ProgramRace) => {
     const t = g1Target(h);
     if (t === null) return false;
-    if (t.weeks < ENTRY.prepBefore || weeksRested(h, serial) < ENTRY.prepAfterRest) return true;
+    // 休み明けかどうかは実際の日付で数える（夏休みは開催週では1週しかない）
+    const gap = realWeeksSince(h, year, week.days[0].month, week.days[0].day) ?? 99;
+    if (t.weeks < ENTRY.prepBefore || gap < ENTRY.prepAfterRest) return true;
     const route = PREP_ROUTES[t.name];
     return !!route && !route.includes(race.name);
   };
@@ -273,6 +289,17 @@ export function weekCard(world: World): WeekCard {
   const shortRest = (h: WorldHorse) => BALANCE.rotation.shortPenalty * Math.max(0, desiredRest(h) - weeksRested(h, serial));
 
   const used = new Set<number>();
+
+  // 中京の G1（画面に出ない）：収得賞金順に出走馬を決める
+  const offscreen = offscreenG1Of(week.index).map((race) => {
+    const horseIds = active
+      .filter((h) => !used.has(h.id) && offscreenEligible(h, race, year) && available(h, serial, restNeeded(h)) && underYearCap(h, year))
+      .sort((a, b) => money.get(b.id)! - money.get(a.id)!)
+      .slice(0, OFFSCREEN.g1Runners)
+      .map((h) => h.id);
+    for (const id of horseIds) used.add(id);
+    return { race, horseIds };
+  });
 
   // 海外遠征：日本の現役トップに近い馬が、向いたレースにときどき挑戦する（その週は国内に出ない）
   const abroadRng = rng.fork(77);
@@ -325,18 +352,20 @@ export function weekCard(world: World): WeekCard {
         fit >= (loose ? ENTRY.looseFit : -2.5) &&
         (loose || (p.raceClass === 'G1' ? g1DistanceOk(h, p) : distanceOk(h, p.distance, serial, p.no))) &&
         (loose || !fillyStaysHome(h, p)) &&
-        (p.raceClass === 'G1' || !skipsForG1(h, p));
+        (p.raceClass === 'G1' || !skipsForG1(h, p)) &&
+        // 古馬の G1 は重賞の実績（勝ち鞍か近走の3着以内）がある馬（頭数が足りなければ補充で入る）
+        (loose || p.raceClass !== 'G1' || p.age === '2' || p.age === '3' || hasGradedCredit(h));
       const collect = (loose: boolean) =>
         active
           .map((h) => ({ h, fit: aptitudeFit(h, p.surface, p.distance) }))
           .filter(({ h, fit }) => eligible(h, fit, loose))
           .map(({ h, fit }) => ({
             h,
-            // G1 は優先出走権のある馬が先、あとは賞金順（ユーザー指定）。G2・G3 は賞金を重く、能力（陣営の見立て）も少し
+            // G1 は優先出走権のある馬が先、あとは収得賞金順（ユーザー指定）。G2・G3 は収得賞金を重く、能力（陣営の見立て）も少し
             s:
               p.raceClass === 'G1'
-                ? (hasPriority(h, p.name, year) ? 1e6 : 0) + h.earnings + pickRng.range(0, 1)
-                : 3 * Math.log10(1 + h.earnings) +
+                ? (hasPriority(h, p.name, year) ? 1e6 : 0) + money.get(h.id)! + pickRng.range(0, 1)
+                : 3 * Math.log10(1 + money.get(h.id)!) +
                   0.4 * score.get(h.id)! +
                   0.8 * fit +
                   pickRng.normal(0, 1.5) -
@@ -352,7 +381,7 @@ export function weekCard(world: World): WeekCard {
           .filter((x) => !have.has(x.h.id))
           .map((x) => ({
             ...x,
-            s: p.raceClass === 'G1' ? -1e7 + 2 * aptitudeFit(x.h, p.surface, p.distance) + Math.log10(1 + x.h.earnings) : x.s - 100,
+            s: p.raceClass === 'G1' ? -1e7 + 2 * aptitudeFit(x.h, p.surface, p.distance) + Math.log10(1 + money.get(x.h.id)!) : x.s - 100,
           }))
           .sort((a, b) => b.s - a.s)
           .slice(0, fillTo - pool.length);
@@ -401,7 +430,7 @@ export function weekCard(world: World): WeekCard {
     race.horseIds = pickRng.shuffle(chosen);
     race.program = { ...p, runners: chosen.length };
   }
-  return { serial, year, week, conditions, races, abroad };
+  return { serial, year, week, conditions, races, abroad, offscreen };
 }
 
 /** これから horizon 週以内（今週を含む）の G1 と、何週先か */

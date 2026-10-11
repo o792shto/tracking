@@ -310,7 +310,7 @@ export function RaceCard() {
                       <span className="recent">
                         {profile.recent.length === 0 && <span className="muted">初出走</span>}
                         {profile.recent.map((r, k) => (
-                          <span key={k} className={r.rank <= 3 ? 'good' : ''} title={formatPastRun(r)}>
+                          <span key={k} className={r.rank <= 3 ? `good rank-${r.rank}` : ''} title={formatPastRun(r)}>
                             {r.rank}
                             <small>/{r.runners}</small>
                           </span>

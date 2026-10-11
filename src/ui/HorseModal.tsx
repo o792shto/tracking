@@ -103,10 +103,11 @@ export function HorseModal() {
                     </thead>
                     <tbody>
                       {[...h.runs].reverse().map((r, i) => (
-                        <tr key={i} className={r.rank === 1 ? 'won' : ''}>
+                        <tr key={i} className={r.rank <= 3 ? `placed rank-${r.rank}` : ''}>
                           <td className="small">
                             {r.year}/{r.month}/{r.day} {r.venue}
                             {r.abroad && <span className="tag soft">海外</span>}
+                            {r.offscreen && <span className="tag soft">ニュース</span>}
                           </td>
                           <td>
                             <GradeBadge grade={r.grade} />

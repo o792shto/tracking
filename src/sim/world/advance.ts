@@ -1,61 +1,19 @@
 import { simulateRace } from '../engine';
 import { GRADED_RACES_2026, type Grade } from '../gradedRaces';
-import type { ProgramRace } from '../program';
 import { Rng, hashSeed } from '../rng';
 import type { FinishRecord } from '../types';
 import { FIRST_YEAR, WEEKS_PER_YEAR, weekOf } from './calendar';
 import { WORLD, ageOf, currentStats, newHorse, rating } from './horses';
 import { ABROAD, abroadPower, overseasRanks } from './overseas';
+import { OFFSCREEN, SUMMER_RACES, offscreenEligible, offscreenRanks, type OffscreenRace } from './offscreen';
+import { syutoku } from './prize';
 import { BALANCE } from '../balance';
 import { quickFinish } from './quick';
 import { raceSetup, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
 import { RUNS_KEPT, type Award, type NewsItem, type Tier, type World, type WorldHorse } from './types';
 
-/** 条件戦・オープンの1着の賞金（万円） */
-export const PRIZE: Record<'open' | '3win' | '2win' | '1win' | 'maiden' | 'newcomer', number> = {
-  open: 2400,
-  '3win': 1800,
-  '2win': 1500,
-  '1win': 1000,
-  maiden: 550,
-  newcomer: 700,
-};
-/** 2着以下は1着賞金に対する割合（2着40%・3着25%・4着15%・5着10%） */
-export const PRIZE_SHARE = [1, 0.4, 0.25, 0.15, 0.1];
-/** G1 で賞金を個別に決めるレース（万円） */
-const G1_PRIZE: Record<string, number> = {
-  ジャパンC: 50000,
-  有馬記念: 50000,
-  日本ダービー: 30000,
-  '天皇賞・春': 30000,
-  '天皇賞・秋': 30000,
-  宝塚記念: 30000,
-  大阪杯: 30000,
-  皐月賞: 20000,
-  菊花賞: 20000,
-};
-
-/**
- * 1着の賞金（万円。ユーザー指定）。
- * G3 4000万。G2 は2歳戦4000万・3歳戦5500万・古馬戦7000万。
- * G1 はジャパンC・有馬記念5億、ダービー・天皇賞・宝塚記念・大阪杯3億、皐月賞・菊花賞2億、
- * 2歳戦8000万、牝馬限定1億5000万、それ以外（マイル・短距離など）1億8000万
- */
-export function firstPrize(p: Pick<ProgramRace, 'raceClass' | 'name' | 'age' | 'fillies'>): number {
-  switch (p.raceClass) {
-    case 'G1':
-      if (G1_PRIZE[p.name]) return G1_PRIZE[p.name];
-      if (p.age === '2') return 8000;
-      if (p.fillies) return 15000;
-      return 18000;
-    case 'G2':
-      return p.age === '2' ? 4000 : p.age === '3' ? 5500 : 7000;
-    case 'G3':
-      return 4000;
-    default:
-      return PRIZE[p.raceClass];
-  }
-}
+export { PRIZE, PRIZE_SHARE, firstPrize } from './prize';
+import { PRIZE_SHARE, firstPrize } from './prize';
 
 /** 世界の出来事の起こりやすさ */
 export const EVENTS = {
@@ -163,6 +121,21 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
     }
   }
   runAbroad(world, card, byId, rng.fork(5));
+  // 中京の G1（画面に出ない）
+  for (const { race, horseIds } of card.offscreen) {
+    if (horseIds.length < 5) continue;
+    const horses = horseIds.map((id) => byId.get(id)!);
+    const ranks = offscreenRanks(race, horses, year, seasonProgress(week.index, WEEKS_PER_YEAR), rng.fork(9));
+    const top3 = recordOffscreen(world, race, horses, ranks, year, week.index, world.serial);
+    news(
+      world,
+      'offscreen',
+      `${race.name}は${top3[0].name}が優勝`,
+      `${race.venue}の${race.name}（G1・${race.surface === 'turf' ? '芝' : 'ダート'}${race.distance}m）は${top3[0].name}が勝ちました。2着${top3[1]?.name ?? '—'}、3着${top3[2]?.name ?? '—'}。`,
+      top3.map((h) => h.id),
+    );
+    for (const h of horses) addFatigue(h, 'G1', race.distance, ranks[horses.indexOf(h)]);
+  }
   // 疲労は週ごとに抜ける
   for (const h of world.horses) if (h.fatigue) h.fatigue = h.fatigue * BALANCE.fatigue.decayPerWeek < 0.01 ? 0 : h.fatigue * BALANCE.fatigue.decayPerWeek;
   world.serial++;
@@ -222,6 +195,65 @@ function runAbroad(world: World, card: WeekCard, byId: Map<number, WorldHorse>, 
   }
 }
 
+/**
+ * 画面に出ないレースの結果を名簿・重賞の結果・ニュースに残す（ranks は horses の並び順の着順）
+ */
+function recordOffscreen(
+  world: World,
+  race: OffscreenRace,
+  horses: WorldHorse[],
+  ranks: number[],
+  year: number,
+  weekIndex: number,
+  lastWeek: number,
+) {
+  const first = firstPrize({ raceClass: race.grade, name: race.name, age: race.age, fillies: race.fillies });
+  horses.forEach((h, k) => {
+    const rank = ranks[k];
+    const prize = Math.round(first * (PRIZE_SHARE[rank - 1] ?? 0));
+    h.starts++;
+    if (rank === 1) {
+      h.wins++;
+      h.tier = 'open';
+      h.graded.push({ year, name: race.name, grade: race.grade });
+    } else if (rank === 2) h.seconds++;
+    else if (rank === 3) h.thirds++;
+    h.earnings += prize;
+    h.earningsByYear[year] = (h.earningsByYear[year] ?? 0) + prize;
+    h.runs.push({
+      year,
+      week: weekIndex,
+      month: race.month,
+      day: race.day,
+      venue: race.venue,
+      offscreen: true,
+      race: race.name,
+      grade: race.grade,
+      raceClass: race.grade,
+      surface: race.surface,
+      distance: race.distance,
+      runners: horses.length,
+      rank,
+      time: 0,
+      margin: '',
+    });
+    if (h.runs.length > RUNS_KEPT) h.runs.splice(0, h.runs.length - RUNS_KEPT);
+    h.lastWeek = Math.max(h.lastWeek ?? lastWeek, lastWeek);
+  });
+  const top3 = [1, 2, 3].map((r) => horses[ranks.indexOf(r)]).filter(Boolean);
+  world.graded.push({
+    year,
+    week: weekIndex,
+    name: race.name,
+    grade: race.grade,
+    venue: race.venue,
+    date: { month: race.month, day: race.day },
+    top3: top3.map((h) => ({ id: h.id, name: h.name })),
+    time: 0,
+  });
+  return top3;
+}
+
 /** レースの疲労（格・距離・着順で増える） */
 function addFatigue(h: WorldHorse, cls: keyof typeof BALANCE.fatigue.gain, distance: number, rank: number) {
   const F = BALANCE.fatigue;
@@ -277,27 +309,72 @@ function afterSummer(world: World, year: number, rng: Rng) {
   for (const h of active) if (ageOf(h, year) === 3 && h.wins === 0) retire(world, h, 'maiden');
   // 夏は全馬が放牧で休む（疲労はすっかり抜ける）
   for (const h of active) h.fatigue = 0;
-  // 夏に力をつけた馬（3〜4歳。晩成ほど選ばれやすい）。能力は本当に上がるが、ファンに見えるのは一部だけ。
-  // ニュースで名前が出た馬はファンも知っているので、見える割合が大きい
+  // 夏に力をつけた馬（3〜4歳。晩成ほど選ばれやすい）。能力は本当に上がるが、ファンに見えるのは一部だけ
   const S = BALANCE.summer;
+  const grown = new Map<number, number>();
+  const grow = (h: WorldHorse, share: number) => {
+    const boost = rng.int(...S.boost);
+    h.boost += boost;
+    h.boostPublic = (h.boostPublic ?? 0) + boost * share;
+    grown.set(h.id, boost);
+  };
   const candidates = active.filter((h) => !h.retired && (ageOf(h, year) === 3 || ageOf(h, year) === 4) && h.tier !== 'maiden');
   const count = rng.int(...S.hiddenHorses);
-  const picked: { h: WorldHorse; boost: number }[] = [];
   for (let k = 0; k < count && candidates.length > 0; k++) {
     const i = rng.weighted(candidates.map((h, idx) => [idx, Math.exp(h.growth * 1.5)] as const));
-    picked.push({ h: candidates.splice(i, 1)[0], boost: rng.int(...S.boost) });
+    grow(candidates.splice(i, 1)[0], S.publicShareHidden);
   }
-  // 成長の大きい馬から数頭をニュースで発表する
-  picked.sort((a, b) => b.boost - a.boost);
-  const named = rng.int(...S.newsHorses);
-  picked.forEach(({ h, boost }, k) => {
-    const inNews = k < named;
-    h.boost += boost;
-    h.boostPublic = (h.boostPublic ?? 0) + boost * (inNews ? S.publicShareNamed : S.publicShareHidden);
-    if (!inNews) return;
-    const look = boost >= 5 ? 'ひと夏で馬体が見違えるほど成長' : '夏の休養で馬体がひと回り大きくなった';
-    news(world, 'summer', `夏の上がり馬：${h.name}`, `${h.name}（${ageOf(h, year)}歳・${tierLabel(h.tier)}）は${look}。秋の飛躍が期待されます。`, [h.id]);
-  });
+
+  // 夏の重賞（画面に出ない）：収得賞金の順に出走馬を決めて着順を出す。G1 馬の多くは秋に備えて休む。
+  // 夏に力をつけた馬ほど勝ちやすい。勝ち馬の多くは「夏の上がり馬」としてニュースになる
+  const { week } = weekOf(world.serial);
+  const progress = seasonProgress(week.index, WEEKS_PER_YEAR);
+  const money = new Map(active.map((h) => [h.id, syutoku(h)]));
+  const ran = new Set<number>();
+  const results: { race: OffscreenRace; winner: WorldHorse }[] = [];
+  for (const race of SUMMER_RACES) {
+    const n = rng.int(...OFFSCREEN.summerRunners);
+    const field = active
+      .filter(
+        (h) =>
+          !h.retired &&
+          !ran.has(h.id) &&
+          offscreenEligible(h, race, year) &&
+          // 年間の出走数の上限に余裕のある馬だけ（秋の分を残す）
+          h.runs.filter((r) => r.year === year).length < OFFSCREEN.summerMaxStartsSoFar,
+      )
+      .filter((h) => !h.graded.some((g) => g.grade === 'G1') || rng.chance(0.15))
+      .sort((x, y) => money.get(y.id)! - money.get(x.id)! + rng.normal(0, 300))
+      .slice(0, n);
+    if (field.length < 6) continue;
+    for (const h of field) ran.add(h.id);
+    const ranks = offscreenRanks(race, field, year, progress, rng);
+    const top3 = recordOffscreen(world, race, field, ranks, year, Math.max(0, week.index - 1), world.serial - 1);
+    const winner = top3[0];
+    results.push({ race, winner });
+    // 勝ち馬は夏に力をつけていたことが多い（まだならここで成長。ファンにも知られる）
+    if (!grown.has(winner.id) && rng.chance(OFFSCREEN.winnerGrowthChance)) grow(winner, S.publicShareNamed);
+    if (grown.has(winner.id)) {
+      winner.boostPublic = Math.max(winner.boostPublic ?? 0, grown.get(winner.id)! * S.publicShareNamed);
+      const look = grown.get(winner.id)! >= 5 ? 'ひと夏で馬体が見違えるほど成長' : '夏の間にひと回りたくましくなった';
+      news(
+        world,
+        'summer',
+        `夏の上がり馬：${winner.name}`,
+        `${race.name}（${race.venue}・${race.grade}）を勝った${winner.name}（${ageOf(winner, year)}歳）は${look}。秋の飛躍が期待されます。`,
+        [winner.id],
+      );
+    }
+  }
+  if (results.length > 0) {
+    news(
+      world,
+      'offscreen',
+      `${year}年 夏の重賞の結果`,
+      results.map(({ race, winner }) => `${race.name}＝${winner.name}`).join('、'),
+      results.map(({ winner }) => winner.id),
+    );
+  }
 }
 
 /** 賞金（万円）の表示（例：「12億3,300万円」「5,285万円」） */

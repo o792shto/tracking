@@ -57,8 +57,8 @@ describe('世界', () => {
           expect(ok, `${r.program.name} ${age}歳`).toBe(true);
           if (r.program.fillies) expect(h.sex).toBe('filly');
           if (r.program.raceClass === 'newcomer') expect(h.starts).toBe(0);
-          // 重賞・オープンを勝った馬（オープン馬）は条件戦に出ない
-          if (!r.grade) expect(h.tier, `${h.name} ${r.program.name}`).not.toBe('open');
+          // 重賞・オープンを勝った馬（オープン馬）は条件戦に出ない（オープン特別は別）
+          if (!r.grade && r.program.raceClass !== 'open') expect(h.tier, `${h.name} ${r.program.name}`).not.toBe('open');
           expect(h.retired).toBeNull();
         }
       }
@@ -91,7 +91,10 @@ describe('世界', () => {
       const runs = h.runs.filter((r) => r.year === year);
       expect(runs.length, h.name).toBeLessThanOrEqual(7);
       for (let i = 1; i < runs.length; i++) {
-        if (runs[i - 1].grade) expect(runs[i].week - runs[i - 1].week, h.name).toBeGreaterThanOrEqual(runs[i - 1].grade === 'G1' ? 4 : 3);
+        // 実際の日付で数える（夏の重賞は夏休みの間）。土日・月曜のずれがあるので半週の余裕
+        const day = (r: (typeof runs)[number]) => Date.UTC(r.year, r.month - 1, r.day) / 86_400_000;
+        const weeks = (day(runs[i]) - day(runs[i - 1])) / 7;
+        if (runs[i - 1].grade) expect(weeks, h.name).toBeGreaterThanOrEqual((runs[i - 1].grade === 'G1' ? 4 : 3) - 0.5);
       }
     }
   });
@@ -105,7 +108,9 @@ describe('世界', () => {
 
   test('1年で全重賞の結果と表彰が残る', () => {
     const year = weekOf(before.serial).year;
-    expect(world.graded.filter((g) => g.year === year)).toHaveLength(98);
+    expect(world.graded.filter((g) => g.year === year && !g.date)).toHaveLength(98);
+    // 画面に出ない重賞（夏競馬・中京の G1）も結果が残る
+    expect(world.graded.filter((g) => g.year === year && g.date).map((g) => g.name)).toEqual(expect.arrayContaining(['札幌記念', 'チャンピオンズC', '高松宮記念']));
     const titles = world.awards.filter((a) => a.year === year).map((a) => a.title);
     expect(titles).toContain('年度代表馬');
     // 夏の上がり馬のニュース

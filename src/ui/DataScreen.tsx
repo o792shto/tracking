@@ -281,7 +281,7 @@ function GradedWinners({ world }: { world: World }) {
             <tbody>
               {list.map((g) => (
                 <tr key={`${g.week}-${g.name}`}>
-                  <td className="small">{weekLabel(RACE_WEEKS[g.week])}</td>
+                  <td className="small">{g.date ? `${g.date.month}月${g.date.day}日` : weekLabel(RACE_WEEKS[g.week])}</td>
                   <td>
                     <GradeBadge grade={g.grade} />
                     {g.name}
@@ -290,7 +290,7 @@ function GradedWinners({ world }: { world: World }) {
                   {[0, 1, 2].map((k) => (
                     <td key={k}>{g.top3[k] ? <HorseLink id={g.top3[k].id} name={g.top3[k].name} /> : '—'}</td>
                   ))}
-                  <td className="num">{formatTime(g.time)}</td>
+                  <td className="num">{g.time > 0 ? formatTime(g.time) : '—'}</td>
                 </tr>
               ))}
             </tbody>

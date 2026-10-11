@@ -1,10 +1,10 @@
-import { GRADED_RACES_2026, RACE_WEEKS, weekLabel } from '../sim';
+import { GRADED_RACES_2026, OFFSCREEN_G1, RACE_WEEKS, SUMMER_RACES, weekLabel } from '../sim';
 import { useGame } from '../store';
 import { HorseLink } from './DataScreen';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { useWorldData } from './useRace';
 
-const DOMESTIC = new Set(GRADED_RACES_2026.map((g) => g.name));
+const DOMESTIC = new Set([...GRADED_RACES_2026.map((g) => g.name), ...OFFSCREEN_G1.map((g) => g.name), ...SUMMER_RACES.map((g) => g.name)]);
 
 /** 年末のふりかえり：年度代表馬・表彰・その年の G1・海外の G1・自分の馬券の成績 */
 export function ReviewScreen() {
@@ -94,7 +94,7 @@ export function ReviewScreen() {
         <ul className="review-g1">
           {g1.map((g) => (
             <li key={`${g.week}-${g.name}`}>
-              <span className="muted small">{weekLabel(RACE_WEEKS[g.week])}</span>
+              <span className="muted small">{g.date ? `${g.date.month}月${g.date.day}日 ${g.venue}` : weekLabel(RACE_WEEKS[g.week])}</span>
               <span>
                 <GradeBadge grade="G1" />
                 {g.name}
