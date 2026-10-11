@@ -58,10 +58,10 @@ export async function goNextWeek(): Promise<void> {
   if (week.index === 0) game.showReview(year - 1);
 }
 
-/** 今週の残りのレースをすべて観戦せずに確定させる（買った馬券は結果どおりに精算） */
-export function settleRest(meeting: Meeting): void {
+/** 今週の残りのレース（until を指定したらその手前まで）を観戦せずに確定させる（買った馬券は結果どおりに精算） */
+export function settleRest(meeting: Meeting, until = meeting.races.length): void {
   const game = getGameStore();
-  for (let i = game.getState().raceIndex; i < meeting.races.length; i++) {
+  for (let i = game.getState().raceIndex; i < Math.min(until, meeting.races.length); i++) {
     const r = runQuietly(meeting.races[i]);
     game.getState().settle(r.payouts, r.finishOrder, r.info, false);
   }

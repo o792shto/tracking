@@ -22,6 +22,8 @@ export function MeetingTop() {
   const favorites = useGame((s) => s.favorites);
   const [busy, setBusy] = useState(false);
   const done = raceIndex >= meeting.races.length;
+  // 今週これからある G1（その手前まで結果だけ見て進める）
+  const nextG1 = meeting.races.findIndex((r, i) => i >= raceIndex && r.grade === 'G1');
 
   const run = (f: () => Promise<void>) => {
     if (busy) return;
@@ -55,6 +57,11 @@ export function MeetingTop() {
         </p>
         {!done && (
           <div className="skip-main">
+            {nextG1 > raceIndex && (
+              <button type="button" className="primary" onClick={() => settleRest(meeting, nextG1)} disabled={busy}>
+                G1（{meeting.races[nextG1].name}）までスキップ
+              </button>
+            )}
             <button type="button" onClick={() => settleRest(meeting)} disabled={busy}>
               今週の残りを結果だけ見る
             </button>
