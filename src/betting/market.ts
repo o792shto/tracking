@@ -17,6 +17,8 @@ export function reputation(entry: RaceSetup['entries'][number]): number {
   if (r) {
     rep += BETTING.reputation.g1 * Math.min(r.g1Wins, 3);
     rep += BETTING.reputation.graded * Math.min(r.gradedWins - r.g1Wins, 3);
+    // 詰めた間隔での疲れは、ファンにもある程度わかる
+    rep -= BETTING.reputation.fatigue * (r.fatigue ?? 0);
   }
   for (const run of entry.history?.slice(0, 3) ?? []) {
     if (run.grade && run.rank <= 3) rep += BETTING.reputation.gradedPlace;
@@ -26,7 +28,7 @@ export function reputation(entry: RaceSetup['entries'][number]): number {
 
 /** 見た目の強さと実績から各馬の勝率を推定する（ソフトマックス） */
 export function winProbabilities(setup: RaceSetup): number[] {
-  const s = apparentStrength(setup).map((x, i) => x + reputation(setup.entries[i]));
+  const s = apparentStrength(setup, 'public').map((x, i) => x + reputation(setup.entries[i]));
   const max = Math.max(...s);
   const e = s.map((x) => Math.exp((x - max) / BETTING.strengthTemperature));
   const z = e.reduce((a, b) => a + b, 0);

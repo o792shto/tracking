@@ -6,6 +6,7 @@ import type { FinishRecord } from '../types';
 import { FIRST_YEAR, WEEKS_PER_YEAR, weekOf } from './calendar';
 import { WORLD, ageOf, currentStats, newHorse, rating } from './horses';
 import { ABROAD, abroadPower, overseasRanks } from './overseas';
+import { BALANCE } from '../balance';
 import { quickFinish } from './quick';
 import { raceSetup, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
 import { RUNS_KEPT, type Award, type NewsItem, type Tier, type World, type WorldHorse } from './types';
@@ -64,10 +65,6 @@ export const EVENTS = {
   injuryRetire: 0.15,
   /** 休養の長さ（週） */
   injuryRest: [6, 24] as [number, number],
-  /** 夏の上がり馬の数 */
-  summerHorses: [3, 5] as [number, number],
-  /** 夏の上がり馬の上乗せ（点） */
-  summerBoost: [3, 6] as [number, number],
   /** 引退する年齢（その年の終わりに） */
   retireAge: 7,
   /** ニュースを残す数 */
@@ -85,6 +82,8 @@ export interface AdvanceOptions {
   full?: boolean;
   /** 観戦レースの単勝人気（キーは raceKey、値は馬番順の人気） */
   popularity?: Record<string, number[]>;
+  /** すでに走らせたレースの着順（キーは raceKey）。あればそれを使う（計測ツールで二重に走らせないため） */
+  finishes?: Record<string, FinishRecord[]>;
 }
 
 /** レースを区別するキー（週・日・レース番号） */
@@ -107,7 +106,7 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
   const rng = new Rng(hashSeed(world.seed + world.serial * 7919));
   for (const race of card.races) {
     if (race.horseIds.length === 0) continue;
-    const finish = raceFinish(world, card, race, options.full ?? true);
+    const finish = options.finishes?.[raceKey(world.serial, race)] ?? raceFinish(world, card, race, options.full ?? true);
     const day = week.days[race.dayIndex];
     const p = race.program;
     const popularity = options.popularity?.[raceKey(world.serial, race)];
@@ -144,6 +143,7 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
       });
       if (h.runs.length > RUNS_KEPT) h.runs.splice(0, h.runs.length - RUNS_KEPT);
       h.lastWeek = world.serial;
+      addFatigue(h, race.grade ?? (p.raceClass === 'open' ? 'open' : 'condition'), p.distance, f.rank);
       // 故障
       if (rng.chance(EVENTS.injury)) injure(world, h, rng);
     }
@@ -163,6 +163,8 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
     }
   }
   runAbroad(world, card, byId, rng.fork(5));
+  // 疲労は週ごとに抜ける
+  for (const h of world.horses) if (h.fatigue) h.fatigue = h.fatigue * BALANCE.fatigue.decayPerWeek < 0.01 ? 0 : h.fatigue * BALANCE.fatigue.decayPerWeek;
   world.serial++;
   enterWeek(world);
   return world;
@@ -205,6 +207,7 @@ function runAbroad(world: World, card: WeekCard, byId: Map<number, WorldHorse>, 
       });
       if (h.runs.length > RUNS_KEPT) h.runs.splice(0, h.runs.length - RUNS_KEPT);
       h.lastWeek = world.serial;
+      addFatigue(h, 'G1', race.distance, rank);
       const title =
         rank === 1 ? `${h.name}が${race.name}制覇！` : `${race.name}に${h.name}が挑戦し${rank}着`;
       const body =
@@ -217,6 +220,13 @@ function runAbroad(world: World, card: WeekCard, byId: Map<number, WorldHorse>, 
       if (rng.chance(EVENTS.injury)) injure(world, h, rng);
     });
   }
+}
+
+/** レースの疲労（格・距離・着順で増える） */
+function addFatigue(h: WorldHorse, cls: keyof typeof BALANCE.fatigue.gain, distance: number, rank: number) {
+  const F = BALANCE.fatigue;
+  const gain = F.gain[cls] * (distance >= BALANCE.rotation.longRaceDistance ? F.longFactor : 1) * (rank <= 3 ? F.hardRunFactor : 1);
+  h.fatigue = (h.fatigue ?? 0) + gain;
 }
 
 function injure(world: World, h: WorldHorse, rng: Rng) {
@@ -265,22 +275,29 @@ function afterSummer(world: World, year: number, rng: Rng) {
   const active = world.horses.filter((h) => !h.retired);
   // 3歳の未勝利戦は夏で終わる
   for (const h of active) if (ageOf(h, year) === 3 && h.wins === 0) retire(world, h, 'maiden');
-  // 夏に力をつけた馬（3〜4歳の条件馬、晩成ほど選ばれやすい）
-  const candidates = active.filter(
-    (h) => !h.retired && (ageOf(h, year) === 3 || ageOf(h, year) === 4) && h.tier !== 'maiden' && h.tier !== 'open',
-  );
-  const count = rng.int(...EVENTS.summerHorses);
-  const picked: WorldHorse[] = [];
+  // 夏は全馬が放牧で休む（疲労はすっかり抜ける）
+  for (const h of active) h.fatigue = 0;
+  // 夏に力をつけた馬（3〜4歳。晩成ほど選ばれやすい）。能力は本当に上がるが、ファンに見えるのは一部だけ。
+  // ニュースで名前が出た馬はファンも知っているので、見える割合が大きい
+  const S = BALANCE.summer;
+  const candidates = active.filter((h) => !h.retired && (ageOf(h, year) === 3 || ageOf(h, year) === 4) && h.tier !== 'maiden');
+  const count = rng.int(...S.hiddenHorses);
+  const picked: { h: WorldHorse; boost: number }[] = [];
   for (let k = 0; k < count && candidates.length > 0; k++) {
     const i = rng.weighted(candidates.map((h, idx) => [idx, Math.exp(h.growth * 1.5)] as const));
-    picked.push(candidates.splice(i, 1)[0]);
+    picked.push({ h: candidates.splice(i, 1)[0], boost: rng.int(...S.boost) });
   }
-  for (const h of picked) {
-    const boost = rng.int(...EVENTS.summerBoost);
+  // 成長の大きい馬から数頭をニュースで発表する
+  picked.sort((a, b) => b.boost - a.boost);
+  const named = rng.int(...S.newsHorses);
+  picked.forEach(({ h, boost }, k) => {
+    const inNews = k < named;
     h.boost += boost;
+    h.boostPublic = (h.boostPublic ?? 0) + boost * (inNews ? S.publicShareNamed : S.publicShareHidden);
+    if (!inNews) return;
     const look = boost >= 5 ? 'ひと夏で馬体が見違えるほど成長' : '夏の休養で馬体がひと回り大きくなった';
     news(world, 'summer', `夏の上がり馬：${h.name}`, `${h.name}（${ageOf(h, year)}歳・${tierLabel(h.tier)}）は${look}。秋の飛躍が期待されます。`, [h.id]);
-  }
+  });
 }
 
 /** 賞金（万円）の表示（例：「12億3,300万円」「5,285万円」） */

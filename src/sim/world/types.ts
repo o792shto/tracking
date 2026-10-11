@@ -58,8 +58,14 @@ export interface WorldHorse {
   surfaceAptitude: Record<Surface, number>;
   /** 成長の型：-1 早熟 〜 +1 晩成 */
   growth: number;
-  /** 夏の成長などによる能力の上乗せ（点） */
+  /** 夏の成長などによる能力の上乗せ（点）。レースではこの分だけ強くなる */
   boost: number;
+  /** boost のうち、ファン（市場）に見えている分（点）。古いデータにはない */
+  boostPublic?: number;
+  /** 疲労（レースで増え、週ごとに抜ける）。古いデータにはない */
+  fatigue?: number;
+  /** 休み明けの得意・不得意（鉄砲駆け・叩き良化）。古いデータにはない */
+  layoffType?: 'fresh' | 'needsRun' | 'normal';
   tier: Tier;
   starts: number;
   wins: number;

@@ -3,14 +3,17 @@ import { Rng } from './rng';
 import type { RaceSetup } from './types';
 
 /**
- * 当日の調子を除いた「見た目の強さ」（m/s 換算）。値が大きいほど強い。オッズ（大衆の投票）の土台にする。
+ * 当日の調子を除いた「見た目の強さ」（m/s 換算）。値が大きいほど強い。
+ * view = 'public' はファンに見えている能力値で計算する（オッズの土台）。'true' は本当の能力値（簡易な結果・計測用）。
  * 重みはシミュレーションの着順（1〜3着）に条件付きロジットを当てはめて決めた（名簿の馬の約1100レース）。
  * 巡航速度を1として、末脚 0.28・スタミナの余裕 1.9（足りないぶんは 4）・先行 +0.1・逃げ +0.06・外枠 -0.03
  */
-export function apparentStrength(setup: RaceSetup): number[] {
+export function apparentStrength(setup: RaceSetup, view: 'true' | 'public' = 'true'): number[] {
   const n = setup.entries.length;
   return setup.entries.map((entry, i) => {
-    const ab = effectiveAbility(entry, setup.course, false);
+    // 市場（ファン）の見方では、見えている能力値（夏の隠れた成長を除く）を使う
+    const seen = view === 'public' && entry.horse.publicStats ? { ...entry, horse: { ...entry.horse, stats: entry.horse.publicStats } } : entry;
+    const ab = effectiveAbility(seen, setup.course, false);
     const need = setup.course.distance / ab.cruise;
     const margin = ab.staminaPool / need - 1;
     const style = entry.horse.style;

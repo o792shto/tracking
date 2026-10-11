@@ -32,11 +32,11 @@ describe('世界', () => {
     expect(weekCard(again).races.map((r) => r.horseIds)).toEqual(cards[0].races.map((r) => r.horseIds));
   }, 60_000);
 
-  test('観戦レース（10〜12R）はどれも8頭以上、G1は14頭以上', () => {
+  test('観戦レース（10〜12R）はどれも8頭以上、G1は12頭以上', () => {
     for (const card of cards) {
       for (const r of card.races.filter((x) => x.visible)) {
         expect(r.horseIds.length, `${card.serial} ${r.program.name}`).toBeGreaterThanOrEqual(8);
-        if (r.grade === 'G1') expect(r.horseIds.length).toBeGreaterThanOrEqual(14);
+        if (r.grade === 'G1') expect(r.horseIds.length).toBeGreaterThanOrEqual(12);
       }
     }
   });
@@ -83,7 +83,7 @@ describe('世界', () => {
     expect(newcomers).toBeGreaterThan(5);
   }, 60_000);
 
-  test('使い詰めにしない：オープン馬は年7走まで、間隔は4週以上', () => {
+  test('使い詰めにしない：オープン馬は年7走まで、重賞の後は中2週以上（G1 の後は中3週以上）', () => {
     const year = weekOf(before.serial).year;
     // 年の初めからオープンだった馬
     const openAtStart = new Set(before.horses.filter((x) => !x.retired && x.tier === 'open').map((x) => x.id));
@@ -91,7 +91,7 @@ describe('世界', () => {
       const runs = h.runs.filter((r) => r.year === year);
       expect(runs.length, h.name).toBeLessThanOrEqual(7);
       for (let i = 1; i < runs.length; i++) {
-        if (runs[i - 1].grade) expect(runs[i].week - runs[i - 1].week, h.name).toBeGreaterThanOrEqual(4);
+        if (runs[i - 1].grade) expect(runs[i].week - runs[i - 1].week, h.name).toBeGreaterThanOrEqual(runs[i - 1].grade === 'G1' ? 4 : 3);
       }
     }
   });

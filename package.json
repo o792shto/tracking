@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "sim:report": "vitest run src/sim/stats.test.ts --silent=false",
     "build:artifact": "npm run build && node scripts/build-artifact.mjs",
-    "tracks:import": "node scripts/import-tracks.mjs"
+    "tracks:import": "node scripts/import-tracks.mjs",
+    "sim:season": "tsx tools/simulate_season.ts"
   },
   "dependencies": {
     "react": "^19.3.0",
@@ -23,6 +24,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.3"

@@ -31,7 +31,7 @@ const STYLE_WEIGHTS: readonly (readonly [RunningStyle, number])[] = [
 
 /** 脚質ごとの能力の傾向 */
 const STYLE_BIAS: Record<RunningStyle, Partial<HorseStats>> = {
-  nige: { speed: 6, start: 8, stamina: 4 },
+  nige: { speed: 5, start: 8, stamina: 0 },
   senko: { speed: 3, start: 4 },
   sashi: { kick: 4 },
   oikomi: { kick: 6, start: -6, speed: -2 },

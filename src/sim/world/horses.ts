@@ -1,5 +1,6 @@
 import { generateHorseName } from '../names';
-import type { Rng } from '../rng';
+import { hashSeed, type Rng } from '../rng';
+import { BALANCE } from '../balance';
 import type { Horse, HorseStats, RunningStyle, Surface } from '../types';
 import type { Sex, WorldHorse } from './types';
 
@@ -29,7 +30,7 @@ const STYLE_WEIGHTS: readonly (readonly [RunningStyle, number])[] = [
   ['oikomi', 0.2],
 ];
 const STYLE_BIAS: Record<RunningStyle, Partial<HorseStats>> = {
-  nige: { speed: 6, start: 8, stamina: 4 },
+  nige: { speed: 5, start: 8, stamina: 0 },
   senko: { speed: 3, start: 4 },
   sashi: { kick: 4 },
   oikomi: { kick: 6, start: -6, speed: -2 },
@@ -66,6 +67,9 @@ export function newHorse(rng: Rng, id: number, birthYear: number, sex: Sex, take
     surfaceAptitude: turfBetter ? { turf: 1, dirt: off } : { turf: off, dirt: 1 },
     growth: Math.max(-1, Math.min(1, rng.normal(0, 0.5))),
     boost: 0,
+    boostPublic: 0,
+    fatigue: 0,
+    layoffType: layoffTypeOf(id),
     tier: 'maiden',
     starts: 0,
     wins: 0,
@@ -79,6 +83,13 @@ export function newHorse(rng: Rng, id: number, birthYear: number, sex: Sex, take
     restUntil: null,
     retired: null,
   };
+}
+
+/** 休み明けの得意・不得意（馬の id から決める。能力の乱数の並びを変えないように） */
+export function layoffTypeOf(id: number): 'fresh' | 'needsRun' | 'normal' {
+  const u = (hashSeed(id * 2654435761) % 10000) / 10000;
+  const L = BALANCE.layoff;
+  return u < L.freshShare ? 'fresh' : u < L.freshShare + L.needsRunShare ? 'needsRun' : 'normal';
 }
 
 export function ageOf(h: Pick<WorldHorse, 'birthYear'>, year: number): number {
@@ -108,6 +119,13 @@ export function currentStats(h: WorldHorse, year: number, seasonProgress: number
   return Object.fromEntries(STAT_KEYS.map((k) => [k, clampStat(h.potential[k] + offset)])) as unknown as HorseStats;
 }
 
+/** ファン（市場）に見えている能力値（夏の成長のうち見えていない分を除く） */
+export function publicStats(h: WorldHorse, year: number, seasonProgress: number): HorseStats {
+  const hidden = h.boost - (h.boostPublic ?? h.boost);
+  const offset = ageOffset(ageOf(h, year), seasonProgress, h.growth) + h.boost - hidden;
+  return Object.fromEntries(STAT_KEYS.map((k) => [k, clampStat(h.potential[k] + offset)])) as unknown as HorseStats;
+}
+
 /** 総合力の目安（出走馬を選ぶとき・表彰の参考） */
 export function rating(stats: HorseStats): number {
   return stats.speed * 0.3 + stats.stamina * 0.25 + stats.kick * 0.3 + stats.power * 0.05 + stats.start * 0.05 + stats.temperament * 0.05;
@@ -124,6 +142,7 @@ export function simHorse(h: WorldHorse, year: number, seasonProgress: number): H
     id: `w${h.id}`,
     name: h.name,
     stats: currentStats(h, year, seasonProgress),
+    publicStats: publicStats(h, year, seasonProgress),
     style: h.style,
     bestDistance: h.bestDistance,
     surfaceAptitude: h.surfaceAptitude,

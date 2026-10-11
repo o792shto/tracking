@@ -8,6 +8,7 @@
 - `npm run test` — Vitest（シミュレーションの統計テストを含む）
 - `npm run build` — 型チェック + 本番ビルド
 - `npm run sim:report` — 1000レースの統計表を表示
+- `npm run sim:season` — 名簿の世界を画面なしで10年分動かし、人気別成績・オッズ帯・配当・ローテーションの計測レポートを `reports/realism_report.md` に書く（約2分。`-- --years 3` などで短く）
 - `npm run tracks:import` — コース形状データ（docs/reference/jra-tracks）から src/sim/trackData.ts を作り直す
 
 ## ルール
@@ -28,7 +29,7 @@
 - `src/ui/` — React画面
 - `src/store/` — Zustandストア（所持コイン、開催データ、成績）
 
-シミュレーションの調整用の数値は `src/sim/params.ts` に集約する。
+シミュレーションの調整用の数値は `src/sim/params.ts` に集約する。リアリティ（出走間隔・疲労・休み明け・夏の隠れ成長・前哨戦ルート・距離）のつまみは `src/sim/balance.ts`、オッズ（市場）のつまみは `src/betting/params.ts`。調整したら `npm run sim:season` で計測し、目標（`reports/realism_report.md` の判定表）を外していないか確かめる
 
 ## 番組と名簿
 

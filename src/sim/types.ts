@@ -63,6 +63,8 @@ export interface Horse {
   bestDistance: number;
   /** 馬場適性（1.0 が最良、0.97 程度まで） */
   surfaceAptitude: Record<Surface, number>;
+  /** ファン（市場）に見えている能力値。夏の隠れた成長の分だけ stats より低い。なければ stats と同じ */
+  publicStats?: HorseStats;
   /** 性別と年齢（名簿の馬のみ。表示用） */
   sex?: 'colt' | 'filly';
   age?: number;
@@ -92,7 +94,7 @@ export interface Entry {
   /** 名簿の馬の近走（新しい順）。なければ出馬表の近走は作り物 */
   history?: PastRun[];
   /** 名簿の馬の実績（人気の付き方に使う） */
-  record?: { g1Wins: number; gradedWins: number; wins: number; starts: number; earnings: number };
+  record?: { g1Wins: number; gradedWins: number; wins: number; starts: number; earnings: number; fatigue?: number };
   /** 当日の調子（0.985〜1.015 程度、プレイヤーには非公開） */
   form: number;
 }
