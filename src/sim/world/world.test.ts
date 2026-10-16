@@ -32,7 +32,7 @@ describe('世界', () => {
     expect(weekCard(again).races.map((r) => r.horseIds)).toEqual(cards[0].races.map((r) => r.horseIds));
   }, 60_000);
 
-  test('観戦レース（10〜12R）はどれも8頭以上、G1は12頭以上', () => {
+  test('観戦レース（10R・11R）はどれも8頭以上、G1は12頭以上', () => {
     for (const card of cards) {
       for (const r of card.races.filter((x) => x.visible)) {
         expect(r.horseIds.length, `${card.serial} ${r.program.name}`).toBeGreaterThanOrEqual(8);

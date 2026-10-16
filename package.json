@@ -13,7 +13,9 @@
     "build:artifact": "npm run build && node scripts/build-artifact.mjs",
     "tracks:import": "node scripts/import-tracks.mjs",
     "sim:season": "tsx tools/simulate_season.ts",
-    "docs:bundle": "node scripts/bundle-for-ai.mjs"
+    "docs:bundle": "node scripts/bundle-for-ai.mjs",
+    "sim:probe": "tsx tools/strategy_probe.ts",
+    "sim:tune": "tsx tools/market_tune.ts"
   },
   "dependencies": {
     "react": "^19.3.0",

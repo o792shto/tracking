@@ -9,7 +9,7 @@ export const STORAGE_KEY = 'keiba-tracking/save-v1';
  * 保存データの形式の版。番組（週ごとのレース）が変わったら上げる。
  * 古い版のデータは、コイン・成績は引き継ぎ、その週の進み具合（結果・未精算の馬券）はやり直す
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export type Screen = 'top' | 'card' | 'watch' | 'result' | 'record' | 'data' | 'review';
 /** 出馬表の印 */
@@ -83,7 +83,7 @@ export interface Settlement {
 /** 確定したレースの情報（成績・名簿に残す） */
 export interface SettledRace {
   venue: string;
-  /** レース番号（10R〜12R） */
+  /** レース番号（10R・11R、ダービーデーは12R） */
   no: number;
   raceName: string;
   key: string;
@@ -161,12 +161,27 @@ function isSaveData(x: unknown): x is SaveData {
 
 /**
  * 古い版の保存データは、レースが今の番組と合わないので週の初めからやり直す（買った馬券は返金）。
- * 開催日ごとの番組だった版（6以前）は、コインと成績だけ引き継いでゲーム開始の週から
+ * 開催日ごとの番組だった版（6以前）は、コインと成績だけ引き継いでゲーム開始の週から。
+ * 1日12Rだった版（7）は、週・お気に入り・年ごとの成績・入金も引き継ぎ、その週の進み具合だけやり直す
  */
 export function migrate(saved: SaveData): SaveData {
   const data = { ...initialData(), ...saved };
   if (saved.version === SAVE_VERSION) return data;
   const history = (data.history ?? []).map((r) => ({ ...r, serial: r.serial ?? 0 }));
+  if (saved.version === 7) {
+    return {
+      ...data,
+      version: SAVE_VERSION,
+      coins: data.coins + placedTotal(data.placed),
+      raceIndex: 0,
+      placed: [],
+      results: {},
+      popularity: {},
+      settlements: {},
+      marks: {},
+      history,
+    };
+  }
   return {
     ...initialData(),
     coins: data.coins + placedTotal(data.placed),

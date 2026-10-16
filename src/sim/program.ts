@@ -5,7 +5,8 @@ import { CONDITIONS, DISTANCES_BY_SURFACE, type Direction, type Surface, type Tr
 import type { VenueDay } from './world/calendar';
 
 /** 1日のレース数 */
-export const RACES_PER_DAY = 12;
+/** 1日のレース数（ダービーデーだけ12Rの目黒記念がある） */
+export const RACES_PER_DAY = 11;
 
 /** クラス（条件） */
 export type RaceClass = 'newcomer' | 'maiden' | '1win' | '2win' | '3win' | 'open' | 'G3' | 'G2' | 'G1';
@@ -76,7 +77,7 @@ export function mainRaceOf(g: GradedRace): Omit<ProgramRace, 'no' | 'runners'> {
 export type Slot = { raceClass: RaceClass; surface: Surface; age: AgeCondition };
 
 /**
- * 典型的な1日の番組（11Rは重賞）。上半期は3歳戦と古馬戦、6月から2歳の新馬戦が始まり古馬は3歳以上になる。
+ * 典型的な1日の番組（1R〜10R。11Rは重賞）。上半期は3歳戦と古馬戦、6月から2歳の新馬戦が始まり古馬は3歳以上になる。
  * クラスの数は名簿の馬の数（クラスごとの頭数）に合わせた。
  * 実際の番組表の再現ではなく、クラスの並び方を真似たテンプレート。
  */
@@ -85,24 +86,25 @@ export function undercard(month: number): Slot[] {
     return [
       { raceClass: 'maiden', surface: 'dirt', age: '2' },
       { raceClass: 'maiden', surface: 'turf', age: '2' },
-      { raceClass: '1win', surface: 'dirt', age: '3up' },
+      // 2勝クラスを1日2つ保つ（12Rをなくした分）
+      { raceClass: '2win', surface: 'dirt', age: '3up' },
       { raceClass: '1win', surface: 'turf', age: '2' },
       // 新馬戦は10月まで（それ以降はほとんどの2歳がデビューしている）
       { raceClass: month <= 10 ? 'newcomer' : 'maiden', surface: 'turf', age: '2' },
       { raceClass: '1win', surface: 'turf', age: '3up' },
       { raceClass: '1win', surface: 'dirt', age: '3up' },
       { raceClass: '2win', surface: 'turf', age: '3up' },
-      // オープン特別（9R）。オープン馬が重賞の合間に使う
-      { raceClass: 'open', surface: month % 2 === 0 ? 'dirt' : 'turf', age: '3up' },
       { raceClass: '3win', surface: 'turf', age: '3up' },
-      { raceClass: '2win', surface: 'dirt', age: '3up' },
+      // オープン特別（10R）。オープン馬が重賞の合間に使う
+      { raceClass: 'open', surface: month % 2 === 0 ? 'dirt' : 'turf', age: '3up' },
     ];
   }
   const older: AgeCondition = month >= 6 ? '3up' : '4up';
   return [
     { raceClass: 'maiden', surface: 'dirt', age: '3' },
     { raceClass: 'maiden', surface: 'turf', age: '3' },
-    { raceClass: 'maiden', surface: 'dirt', age: '3' },
+    // 2勝クラスを1日2つ保つ（12Rをなくした分）
+    { raceClass: '2win', surface: 'turf', age: older },
     month >= 6
       ? { raceClass: 'newcomer', surface: 'turf', age: '2' }
       : { raceClass: 'maiden', surface: 'turf', age: '3' },
@@ -110,10 +112,9 @@ export function undercard(month: number): Slot[] {
     { raceClass: '1win', surface: 'turf', age: '3' },
     { raceClass: '1win', surface: 'turf', age: older },
     { raceClass: '2win', surface: 'dirt', age: older },
-    // オープン特別（9R）。オープン馬が重賞の合間に使う
-    { raceClass: 'open', surface: month % 2 === 0 ? 'dirt' : 'turf', age: older },
     { raceClass: '3win', surface: 'turf', age: older },
-    { raceClass: '2win', surface: 'dirt', age: older },
+    // オープン特別（10R）。オープン馬が重賞の合間に使う
+    { raceClass: 'open', surface: month % 2 === 0 ? 'dirt' : 'turf', age: older },
   ];
 }
 
@@ -133,14 +134,14 @@ export const RUNNERS: Record<RaceClass, [number, number]> = {
 /** 回り（東京は左回り、中山・京都・阪神は右回り） */
 export const VENUE_DIRECTION: Record<Venue, Direction> = { 東京: 'left', 中山: 'right', 京都: 'right', 阪神: 'right' };
 
-/** 1つの競馬場の1日の番組（12R）。11Rは重賞、ダービーデーは12Rも重賞（目黒記念）。runners は出走頭数の上限 */
+/** 1つの競馬場の1日の番組（11R）。11Rは重賞。ダービーデーだけ12Rがあり、目黒記念を行う。runners は出走頭数の上限 */
 export function venueDayProgram(day: VenueDay, rng: Rng): ProgramRace[] {
   const slots = undercard(day.month);
   const races: ProgramRace[] = [];
   let slotIdx = 0;
   // 牝馬限定の条件戦は1日1レース（重賞以外から選ぶ）
-  const filliesNo = rng.pick(day.last ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]);
-  for (let no = 1; no <= RACES_PER_DAY; no++) {
+  const filliesNo = rng.pick([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  for (let no = 1; no <= RACES_PER_DAY + (day.last ? 1 : 0); no++) {
     if (no === 11 || (no === 12 && day.last)) {
       const m = mainRaceOf(no === 11 ? day.main : day.last!);
       races.push({ no, ...m, runners: rng.int(...RUNNERS[m.raceClass]) });

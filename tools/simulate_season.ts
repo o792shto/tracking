@@ -4,13 +4,14 @@
  *
  *   npm run sim:season -- --years 10 --seed 2026 --out reports/realism_report.md
  *
- * 観戦レース（10〜12R）はゲームと同じく毎ステップのシミュレーションで走らせ、オッズも同じ仕組みで作る。
+ * 観戦レース（10R・11R、ダービーデーの12R）はゲームと同じく毎ステップのシミュレーションで走らせ、オッズも同じ仕組みで作る。
  * 人気・配当の集計は観戦レースだけ（1〜9R は簡易な結果でオッズを作らないため）。
  * ローテーションの集計は全レース。間隔は実際の日付（夏休みを含む）で数える。
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { buildMarket, placeCount, settle } from '../src/betting/index.ts';
+import { BETTING, buildMarket, placeCount, settle } from '../src/betting/index.ts';
+import { combinationKey, quinellaKey, type ComboType } from '../src/betting/types.ts';
 import { simulateRace } from '../src/sim/engine.ts';
 import { horseProfiles } from '../src/sim/profile.ts';
 import { FIRST_YEAR, WEEKS_PER_YEAR, weekOf } from '../src/sim/world/calendar.ts';
@@ -41,6 +42,28 @@ const oddsBand = new Map<string, Acc>();
 const quinella: number[] = [];
 const trifecta: number[] = [];
 let visibleRaces = 0;
+/** 組み合わせ馬券の全通り買い（点数と払い戻しの合計、1点1倍） */
+const COMBOS: readonly ComboType[] = ['quinella', 'wide', 'exacta', 'trio', 'trifecta'];
+const COMBO_LABEL: Record<ComboType, string> = { quinella: '馬連', wide: 'ワイド', exacta: '馬単', trio: '3連複', trifecta: '3連単' };
+const allCombo = Object.fromEntries(COMBOS.map((t) => [t, { stake: 0, ret: 0 }])) as Record<ComboType, { stake: number; ret: number }>;
+/** オッズが示す確率（(1−控除率)/オッズ）の帯ごとの、期待の的中数と実際の的中数 */
+const CALIB_BANDS: Record<'exacta' | 'trifecta', [number, string][]> = {
+  exacta: [
+    [0.05, '5%以上'],
+    [0.01, '1〜5%'],
+    [0.002, '0.2〜1%'],
+    [0, '0.2%未満'],
+  ],
+  trifecta: [
+    [0.01, '1%以上'],
+    [0.001, '0.1〜1%'],
+    [0.0001, '0.01〜0.1%'],
+    [0, '0.01%未満'],
+  ],
+};
+const calib = new Map<string, { exp: number; hit: number }>();
+/** 単勝オッズから逆算した勝率（Harville）で期待値1以上の馬連・馬単を買う（券種の間の値付けのずれを突く買い方） */
+const evBuy = { quinella: { stake: 0, ret: 0 }, exacta: { stake: 0, ret: 0 } };
 
 const intervalBins = { all: new Map<string, number>(), graded: new Map<string, number>() };
 const startsPerYear = { olderGraded: [] as number[], all: [] as number[] };
@@ -190,6 +213,53 @@ for (let k = 0; k < YEARS * WEEKS_PER_YEAR; k++) {
     });
     quinella.push(payouts.quinella.odds * 100);
     trifecta.push(payouts.trifecta.odds * 100);
+    // 全通り買い
+    allCombo.quinella.ret += payouts.quinella.odds;
+    allCombo.wide.ret += payouts.wide.reduce((a, w) => a + w.odds, 0);
+    allCombo.exacta.ret += payouts.exacta.odds;
+    allCombo.trio.ret += payouts.trio.odds;
+    allCombo.trifecta.ret += payouts.trifecta.odds;
+    for (const t of COMBOS) allCombo[t].stake += board[t].size;
+    // 校正
+    for (const t of ['exacta', 'trifecta'] as const) {
+      const winKey = combinationKey(t, order.slice(0, t === 'exacta' ? 2 : 3));
+      for (const [key, o] of board[t]) {
+        const imp = (1 - BETTING.takeout[t]) / o;
+        const band = CALIB_BANDS[t].find(([lo]) => imp >= lo)![1];
+        const c = calib.get(`${t}:${band}`) ?? { exp: 0, hit: 0 };
+        c.exp += imp;
+        if (key === winKey) c.hit++;
+        calib.set(`${t}:${band}`, c);
+      }
+    }
+    // 単勝オッズから逆算した期待値で選ぶ馬連・馬単
+    {
+      const inv = board.win.map((o) => 1 / o);
+      const z = inv.reduce((a, b) => a + b, 0);
+      const p = inv.map((x) => x / z);
+      const ex = (i: number, j: number) => (p[i] * p[j]) / (1 - p[i]);
+      const qWin = quinellaKey(order[0], order[1]);
+      const eWin = combinationKey('exacta', order.slice(0, 2));
+      const n = p.length;
+      for (let i = 0; i < n; i++)
+        for (let j = 0; j < n; j++) {
+          if (i === j) continue;
+          const ek = combinationKey('exacta', [i + 1, j + 1]);
+          const eo = board.exacta.get(ek)!;
+          if (ex(i, j) * eo >= 1) {
+            evBuy.exacta.stake++;
+            if (ek === eWin) evBuy.exacta.ret += eo;
+          }
+          if (i < j) {
+            const qk = quinellaKey(i + 1, j + 1);
+            const qo = board.quinella.get(qk)!;
+            if ((ex(i, j) + ex(j, i)) * qo >= 1) {
+              evBuy.quinella.stake++;
+              if (qk === qWin) evBuy.quinella.ret += qo;
+            }
+          }
+        }
+    }
   }
 
   advanceWeek(world, { popularity, finishes });
@@ -277,6 +347,38 @@ add('古馬G1の出走馬 重賞勝ち馬の割合', '大半（参考：75%以�
 add('古馬G1の出走馬 重賞勝ちか近走の重賞3着以内', '大半（参考：90%以上）', pct(g1Cred.older[2], g1Cred.older[0]), 90, 100);
 add('出走間隔（重賞級） 中1週以下', '5%未満', gradedShort, 0, 5);
 add('出走間隔（重賞級） 中2〜9週の割合', '中心（参考：50%以上）', gradedCore, 50, 100);
+{
+  // 休み明けは「少し狙い目」（ユーザーの指示）：全体の回収率より高いが、上がりすぎない
+  const all = pct(total.winRet, total.n);
+  const lay = pct(layoff.winRet, layoff.n);
+  checks.push({
+    name: '休み明け初戦の単勝回収率',
+    target: '全体より少し高い（全体〜全体+15ポイント、100%未満）',
+    actual: `${f1(lay)}%（全体 ${f1(all)}%）`,
+    ok: lay >= all - 3 && lay <= Math.min(all + 15, 100),
+  });
+}
+// 組み合わせ馬券：全通り買いの回収率は「1 − 控除率」の ±5ポイント（指示書 課題2）
+for (const t of COMBOS) {
+  const roi = pct(allCombo[t].ret, allCombo[t].stake);
+  const mid = (1 - BETTING.takeout[t]) * 100;
+  add(`${COMBO_LABEL[t]}の全通り買い 回収率`, `${f1(mid)}%前後（±5）`, roi, mid - 5, mid + 5);
+}
+for (const t of ['quinella', 'exacta'] as const) {
+  add(`単勝オッズから逆算した期待値1以上の${COMBO_LABEL[t]} 回収率`, '100%未満', pct(evBuy[t].ret, evBuy[t].stake), 0, 99.99);
+}
+for (const t of ['exacta', 'trifecta'] as const) {
+  for (const [, band] of CALIB_BANDS[t]) {
+    const c = calib.get(`${t}:${band}`) ?? { exp: 0, hit: 0 };
+    const ratio = c.exp > 0 ? c.hit / c.exp : 0;
+    checks.push({
+      name: `${COMBO_LABEL[t]}の校正（オッズが示す確率 ${band}）`,
+      target: '実際の的中 ÷ 期待の的中 0.8〜1.25',
+      actual: `${ratio.toFixed(2)}（期待 ${f1(c.exp)}・実際 ${c.hit}）`,
+      ok: within(ratio, 0.8, 1.25),
+    });
+  }
+}
 
 // ---------- Markdown ----------
 const lines: string[] = [];

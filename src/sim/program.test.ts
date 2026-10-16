@@ -54,9 +54,12 @@ describe('重賞の置き換え', () => {
 });
 
 describe('1日の番組', () => {
-  it('1日12Rで、11Rがその日の重賞', () => {
+  it('1日11R（ダービーデーは12R）で、11Rがその日の重賞、9Rは3勝クラス・10Rはオープン', () => {
     for (const { day, races } of yearDays()) {
-      expect(races).toHaveLength(12);
+      expect(races).toHaveLength(day.last ? 12 : 11);
+      expect(races[8].raceClass).toBe('3win');
+      expect(races[9].raceClass).toBe('open');
+      expect(races.filter((r) => r.raceClass === '2win')).toHaveLength(2);
       expect(races[10]).toMatchObject(mainRaceOf(day.main));
     }
   });

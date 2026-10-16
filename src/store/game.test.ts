@@ -191,4 +191,44 @@ describe('保存', () => {
     expect(s.results).toEqual({});
     expect(s.totals).toEqual(totals);
   });
+
+  it('1日12Rだった版（7）は、週・お気に入りを残して、その週の進み具合だけやり直す', () => {
+    const mem = new Map<string, string>();
+    vi.stubGlobal('window', {
+      localStorage: {
+        getItem: (k: string) => mem.get(k) ?? null,
+        setItem: (k: string, v: string) => void mem.set(k, v),
+        removeItem: (k: string) => void mem.delete(k),
+      },
+    });
+    const totals = { spent: 500, returned: 0, bestPayout: 0, races: 1, hitRaces: 0 };
+    mem.set(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 7,
+        coins: 9000,
+        serial: 12,
+        raceIndex: 3,
+        placed: [{ type: 'win', selection: [2], stake: 300 }],
+        results: { 0: [1, 2, 3] },
+        popularity: {},
+        totals,
+        history: [],
+        depositedSerial: 12,
+        settlements: {},
+        favorites: [5],
+        marks: { '12-0-10': { 1: '◎' } },
+        yearTotals: {},
+      }),
+    );
+    const s = createGameStore().getState();
+    expect(s.version).toBe(SAVE_VERSION);
+    expect(s.coins).toBe(9300);
+    expect(s.serial).toBe(12);
+    expect(s.depositedSerial).toBe(12);
+    expect(s.favorites).toEqual([5]);
+    expect(s.raceIndex).toBe(0);
+    expect(s.placed).toEqual([]);
+    expect(s.marks).toEqual({});
+  });
 });

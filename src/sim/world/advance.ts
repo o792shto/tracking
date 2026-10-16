@@ -9,7 +9,7 @@ import { OFFSCREEN, SUMMER_RACES, offscreenEligible, offscreenRanks, type Offscr
 import { syutoku } from './prize';
 import { BALANCE } from '../balance';
 import { quickFinish } from './quick';
-import { raceSetup, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
+import { fillyAvoidsColts, raceSetup, ratingsOf, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
 import { RUNS_KEPT, type Award, type NewsItem, type Tier, type World, type WorldHorse } from './types';
 
 export { PRIZE, PRIZE_SHARE, firstPrize } from './prize';
@@ -35,7 +35,7 @@ const NEXT_TIER: Record<Tier, Tier> = { maiden: '1win', '1win': '2win', '2win': 
 
 export interface AdvanceOptions {
   /**
-   * 観戦レース（10〜12R）をシミュレーションで走らせるか。省略時は true（ゲーム開始前の準備は false で速くする）
+   * 観戦レース（10R・11R、ダービーデーの12R）をシミュレーションで走らせるか。省略時は true（ゲーム開始前の準備は false で速くする）
    */
   full?: boolean;
   /** 観戦レースの単勝人気（キーは raceKey、値は馬番順の人気） */
@@ -330,6 +330,7 @@ function afterSummer(world: World, year: number, rng: Rng) {
   const { week } = weekOf(world.serial);
   const progress = seasonProgress(week.index, WEEKS_PER_YEAR);
   const money = new Map(active.map((h) => [h.id, syutoku(h)]));
+  const ratings = ratingsOf(active, year, progress);
   const ran = new Set<number>();
   const results: { race: OffscreenRace; winner: WorldHorse }[] = [];
   for (const race of SUMMER_RACES) {
@@ -340,6 +341,8 @@ function afterSummer(world: World, year: number, rng: Rng) {
           !h.retired &&
           !ran.has(h.id) &&
           offscreenEligible(h, race, year) &&
+          // 3歳の牝馬は牡馬相手の3歳重賞（ラジオNIKKEI賞）にはずば抜けた馬だけ
+          !fillyAvoidsColts(h, race, year, ratings) &&
           // 年間の出走数の上限に余裕のある馬だけ（秋の分を残す）
           h.runs.filter((r) => r.year === year).length < OFFSCREEN.summerMaxStartsSoFar,
       )

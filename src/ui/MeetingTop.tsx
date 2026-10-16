@@ -7,7 +7,7 @@ import { GradeBadge, formatCoins } from './GameHeader';
 import { goNextWeek, runQuietly, settleRest, skipWeek, useMeeting, useWorldData } from './useRace';
 import { NewsList } from './DataScreen';
 
-/** 今週のトップ：同じ週の開催日のレース（10R〜12R）をまとめて表示する */
+/** 今週のトップ：同じ週の開催日のレース（10R・11R、ダービーデーは12Rも）をまとめて表示する */
 export function MeetingTop() {
   const meeting = useMeeting();
   const world = useWorldData();
@@ -52,7 +52,7 @@ export function MeetingTop() {
           <small>（{meeting.label}）</small>
         </h1>
         <p>
-          今週の10R〜12Rを発走順に行います。出馬表で馬券を買って発走させてください。毎週{formatCoins(BETTING.weeklyDeposit)}
+          今週の10R・11R（ダービーデーは12Rの目黒記念も）を発走順に行います。出馬表で馬券を買って発走させてください。毎週{formatCoins(BETTING.weeklyDeposit)}
           コインが入金されます。
         </p>
         {!done && (

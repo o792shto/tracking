@@ -7,11 +7,11 @@ import { raceKey } from './world/advance';
 import { raceSetup, type WeekCard } from './world/schedule';
 import type { World } from './world/types';
 
-/** 観戦できるレース1つ（その週の10R・11R・12R） */
+/** 観戦できるレース1つ（その週の10R・11R。ダービーデーは12Rも） */
 export interface MeetingRace {
   /** レースを区別するキー（週・日・レース番号） */
   key: string;
-  /** レース番号（10R〜12R） */
+  /** レース番号（10R・11R、ダービーデーは12R） */
   no: number;
   seed: number;
   raceClass: RaceClass;
@@ -53,7 +53,7 @@ export interface Meeting {
 
 const VENUE_ORDER: Venue[] = ['中山', '東京', '京都', '阪神'];
 
-/** その週の出走表から、観戦できるレース（10〜12R）を日付・レース番号・競馬場の順に並べる */
+/** その週の出走表から、観戦できるレース（10R・11R、ダービーデーは12R）を日付・レース番号・競馬場の順に並べる */
 export function weekMeeting(world: World, card: WeekCard): Meeting {
   const visible = card.races.filter((r) => r.visible && r.horseIds.length > 0);
   const races = visible.map((r): MeetingRace => {

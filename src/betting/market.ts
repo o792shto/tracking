@@ -35,8 +35,20 @@ export function winProbabilities(setup: RaceSetup): number[] {
   return e.map((x) => x / z);
 }
 
-/** Harville の公式で、各馬が k 着以内に入る確率 */
-export function topKProbabilities(p: number[], k: number): number[] {
+/**
+ * 2着・3着を決めるときの「強さ」。勝率 p を λ 乗して正規化する（Henery / Stern 型の補正）。
+ * λ < 1 だと、本命が2・3着に入る確率は Harville の公式（λ = 1）より低く、人気薄は高くなる。
+ * 実際のレースでは、勝ち切れなかった本命がそのまま2・3着に来るとは限らないため
+ */
+export function placeStrength(p: number[], lambda: number): number[] {
+  if (lambda === 1) return p;
+  const w = p.map((x) => Math.pow(x, lambda));
+  const z = w.reduce((a, b) => a + b, 0);
+  return w.map((x) => x / z);
+}
+
+/** 各馬が k 着以内に入る確率。q・r は2着・3着の強さ（省略すると Harville の公式） */
+export function topKProbabilities(p: number[], k: number, q = p, r = q): number[] {
   const n = p.length;
   const out = new Array(n).fill(0);
   for (let a = 0; a < n; a++) {
@@ -45,12 +57,12 @@ export function topKProbabilities(p: number[], k: number): number[] {
     if (k < 2) continue;
     for (let b = 0; b < n; b++) {
       if (b === a) continue;
-      const pab = (pa * p[b]) / (1 - pa);
+      const pab = (pa * q[b]) / (1 - q[a]);
       out[b] += pab;
       if (k < 3) continue;
       for (let c = 0; c < n; c++) {
         if (c === a || c === b) continue;
-        out[c] += (pab * p[c]) / (1 - pa - p[b]);
+        out[c] += (pab * r[c]) / (1 - r[a] - r[b]);
       }
     }
   }
@@ -58,8 +70,8 @@ export function topKProbabilities(p: number[], k: number): number[] {
 }
 
 /** 2頭が1・2着（順不同）になる確率 */
-export function quinellaProbability(p: number[], i: number, j: number): number {
-  return (p[i] * p[j]) / (1 - p[i]) + (p[j] * p[i]) / (1 - p[j]);
+export function quinellaProbability(p: number[], i: number, j: number, q = p): number {
+  return exactaProbability(p, i, j, q) + exactaProbability(p, j, i, q);
 }
 
 /** オッズは0.1倍単位（小数第1位まで）に切り捨て、すべての券種で1.1〜99999.9倍 */
@@ -67,57 +79,57 @@ export function roundOdds(x: number): number {
   return Math.min(BETTING.maxOdds, Math.max(BETTING.minOdds, Math.floor(x * 10 + 1e-9) / 10));
 }
 
-/** 2頭が1・2着（この順）になる確率（Harville） */
-export function exactaProbability(p: number[], i: number, j: number): number {
-  return (p[i] * p[j]) / (1 - p[i]);
+/** 2頭が1・2着（この順）になる確率。q は2着の強さ（省略すると Harville の公式） */
+export function exactaProbability(p: number[], i: number, j: number, q = p): number {
+  return (p[i] * q[j]) / (1 - q[i]);
 }
 
-/** 3頭が1・2・3着（この順）になる確率（Harville） */
-export function trifectaProbability(p: number[], i: number, j: number, k: number): number {
-  return (exactaProbability(p, i, j) * p[k]) / (1 - p[i] - p[j]);
+/** 3頭が1・2・3着（この順）になる確率。q・r は2着・3着の強さ（省略すると Harville の公式） */
+export function trifectaProbability(p: number[], i: number, j: number, k: number, q = p, r = q): number {
+  return (exactaProbability(p, i, j, q) * r[k]) / (1 - r[i] - r[j]);
 }
 
 /** 3頭が1〜3着（順不同）になる確率 */
-export function trioProbability(p: number[], i: number, j: number, k: number): number {
+export function trioProbability(p: number[], i: number, j: number, k: number, q = p, r = q): number {
   return (
-    trifectaProbability(p, i, j, k) +
-    trifectaProbability(p, i, k, j) +
-    trifectaProbability(p, j, i, k) +
-    trifectaProbability(p, j, k, i) +
-    trifectaProbability(p, k, i, j) +
-    trifectaProbability(p, k, j, i)
+    trifectaProbability(p, i, j, k, q, r) +
+    trifectaProbability(p, i, k, j, q, r) +
+    trifectaProbability(p, j, i, k, q, r) +
+    trifectaProbability(p, j, k, i, q, r) +
+    trifectaProbability(p, k, i, j, q, r) +
+    trifectaProbability(p, k, j, i, q, r)
   );
 }
 
-/** 組み合わせの券種の、全組み合わせ（0始まりの馬の添字）と的中確率 */
-function comboTable(type: ComboType, p: number[]): { idx: number[]; prob: number }[] {
+/** 組み合わせの券種の、全組み合わせ（0始まりの馬の添字）と的中確率。q・r は2着・3着の強さ */
+function comboTable(type: ComboType, p: number[], q: number[], r: number[]): { idx: number[]; prob: number }[] {
   const n = p.length;
   const out: { idx: number[]; prob: number }[] = [];
   switch (type) {
     case 'quinella':
-      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) out.push({ idx: [i, j], prob: quinellaProbability(p, i, j) });
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) out.push({ idx: [i, j], prob: quinellaProbability(p, i, j, q) });
       break;
     case 'wide':
       for (let i = 0; i < n; i++)
         for (let j = i + 1; j < n; j++) {
           let prob = 0;
-          for (let k = 0; k < n; k++) if (k !== i && k !== j) prob += trioProbability(p, i, j, k);
+          for (let k = 0; k < n; k++) if (k !== i && k !== j) prob += trioProbability(p, i, j, k, q, r);
           out.push({ idx: [i, j], prob });
         }
       break;
     case 'exacta':
-      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) out.push({ idx: [i, j], prob: exactaProbability(p, i, j) });
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) out.push({ idx: [i, j], prob: exactaProbability(p, i, j, q) });
       break;
     case 'trio':
       for (let i = 0; i < n; i++)
         for (let j = i + 1; j < n; j++)
-          for (let k = j + 1; k < n; k++) out.push({ idx: [i, j, k], prob: trioProbability(p, i, j, k) });
+          for (let k = j + 1; k < n; k++) out.push({ idx: [i, j, k], prob: trioProbability(p, i, j, k, q, r) });
       break;
     case 'trifecta':
       for (let i = 0; i < n; i++)
         for (let j = 0; j < n; j++)
           for (let k = 0; k < n; k++)
-            if (i !== j && j !== k && i !== k) out.push({ idx: [i, j, k], prob: trifectaProbability(p, i, j, k) });
+            if (i !== j && j !== k && i !== k) out.push({ idx: [i, j, k], prob: trifectaProbability(p, i, j, k, q, r) });
       break;
   }
   return out;
@@ -153,11 +165,17 @@ export function buildMarket(setup: RaceSetup, profiles: HorseProfile[]): Market 
   const rng = new Rng(setup.seed).fork(5);
   const n = setup.entries.length;
   const p = winProbabilities(setup);
+  // 2着・3着の強さ（本命が勝ち切れなかったときに2・3着に来る確率を Harville より低く見る）
+  const q = placeStrength(p, BETTING.comboLambda[0]);
+  const r = placeStrength(p, BETTING.comboLambda[1]);
   const k = placeCount(n);
+  // 複勝は Harville の公式のまま（2・3着の補正を入れると、全馬の複勝の回収率が控除率より大きく下がった）
   const pPlace = topKProbabilities(p, k);
   const boost = setup.entries.map((e) => formBoost(profiles.find((x) => x.number === e.number)));
   const steps = BETTING.boardSteps;
   const alpha = BETTING.favoriteBias;
+  /** 複勝・組み合わせの券種の票の偏り（単勝より弱い） */
+  const beta = BETTING.comboFavoriteBias;
 
   const finalNoise = {
     win: p.map(() => rng.normal(0, BETTING.voteNoise)),
@@ -173,7 +191,7 @@ export function buildMarket(setup: RaceSetup, profiles: HorseProfile[]): Market 
   const tables = {} as Record<(typeof EXTRA_COMBOS)[number], { key: string; prob: number; boost: number }[]>;
   const comboNoise = {} as Record<(typeof EXTRA_COMBOS)[number], number[]>;
   for (const type of EXTRA_COMBOS) {
-    tables[type] = comboTable(type, p).map((c) => ({
+    tables[type] = comboTable(type, p, q, r).map((c) => ({
       key: combinationKey(type, c.idx.map((i) => i + 1)),
       prob: c.prob,
       boost: c.idx.reduce((a, i) => a * boost[i], 1),
@@ -190,8 +208,9 @@ export function buildMarket(setup: RaceSetup, profiles: HorseProfile[]): Market 
       BETTING.poolPerRunner.win * n,
     );
     const place = normalize(
-      pPlace.map((x, i) => Math.pow(x, alpha) * boost[i] * Math.exp(finalNoise.place[i] + jitter())),
+      pPlace.map((x, i) => Math.pow(x, beta) * boost[i] * Math.exp(finalNoise.place[i] + jitter())),
       BETTING.poolPerRunner.place * n,
+      BETTING.placeFloor,
     );
     const keys: string[] = [];
     const weights: number[] = [];
@@ -200,7 +219,7 @@ export function buildMarket(setup: RaceSetup, profiles: HorseProfile[]): Market 
         const key = quinellaKey(i + 1, j + 1);
         keys.push(key);
         weights.push(
-          Math.pow(quinellaProbability(p, i, j), alpha) *
+          Math.pow(quinellaProbability(p, i, j, q), beta) *
             boost[i] *
             boost[j] *
             Math.exp(finalNoise.quinella.get(key)! + jitter()),
@@ -212,7 +231,7 @@ export function buildMarket(setup: RaceSetup, profiles: HorseProfile[]): Market 
     for (const type of EXTRA_COMBOS) {
       const table = tables[type];
       const noise = comboNoise[type];
-      const w = table.map((c, idx) => Math.pow(c.prob, alpha) * c.boost * Math.exp(noise[idx] + extraJitter(spread)));
+      const w = table.map((c, idx) => Math.pow(c.prob, beta) * c.boost * Math.exp(noise[idx] + extraJitter(spread)));
       const votes = normalize(w, BETTING.poolPerRunner[type] * n, BETTING.comboFloor[type]);
       extra[type] = new Map(table.map((c, idx) => [c.key, votes[idx]]));
     }

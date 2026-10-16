@@ -1,4 +1,4 @@
-import type { Grade } from '../gradedRaces';
+import type { AgeCondition, Grade } from '../gradedRaces';
 import { frameNumbers } from '../horse';
 import { VENUE_DIRECTION, dayCondition, mainRaceOf, venueDayProgram, type ProgramRace, type RaceClass } from '../program';
 import { Rng, hashSeed } from '../rng';
@@ -11,7 +11,7 @@ import { BALANCE, PREP_ROUTES } from '../balance';
 import { syutoku } from './prize';
 import type { RunRecord, Tier, World, WorldHorse } from './types';
 
-/** 観戦できるレース（10R・11R・12R） */
+/** 観戦できるレース（10R・11R。12Rはダービーデーの目黒記念だけ） */
 export const VISIBLE_RACES: readonly number[] = [10, 11, 12];
 
 /** 1つのレースの出走表 */
@@ -109,6 +109,39 @@ export const PRIORITY_TRIALS: Record<string, readonly (readonly [string, number]
   ],
   NHKマイルC: [['ニュージーランドT', 3]],
 };
+
+/** その時点の総合力と、年齢ごとのトップの総合力 */
+export interface Ratings {
+  score: Map<number, number>;
+  topByAge: Map<number, number>;
+}
+
+export function ratingsOf(horses: readonly WorldHorse[], year: number, progress: number): Ratings {
+  const score = new Map<number, number>();
+  const topByAge = new Map<number, number>();
+  for (const h of horses) {
+    const r = rating(currentStats(h, year, progress));
+    score.set(h.id, r);
+    const age = ageOf(h, year);
+    topByAge.set(age, Math.max(topByAge.get(age) ?? 0, r));
+  }
+  return { score, topByAge };
+}
+
+/**
+ * 2・3歳の牝馬は、牝馬限定でない2・3歳のレース（牡馬クラシック・ラジオNIKKEI賞など）にはほとんど出ない。
+ * 同世代のトップと互角の、ずば抜けた牝馬だけが挑む。週の出走表と夏の重賞（画面外）で共通に使う
+ */
+export function fillyAvoidsColts(
+  h: WorldHorse,
+  race: { age: AgeCondition; fillies: boolean },
+  year: number,
+  ratings: Ratings,
+): boolean {
+  if (h.sex !== 'filly' || race.fillies || (race.age !== '2' && race.age !== '3')) return false;
+  const r = ratings.score.get(h.id) ?? 0;
+  return r < (ratings.topByAge.get(ageOf(h, year)) ?? 0) - ENTRY.fillyVsColts;
+}
 
 /** 重賞の実績（重賞勝ちか、近4走の重賞3着以内）があるか */
 export function hasGradedCredit(h: WorldHorse): boolean {
@@ -214,26 +247,12 @@ export function weekCard(world: World): WeekCard {
 
   // 能力・年齢はこの週の値で比べる
   const active = world.horses.filter((h) => !h.retired && ageOf(h, year) >= 2);
-  const score = new Map<number, number>();
-  for (const h of active) score.set(h.id, rating(currentStats(h, year, progress)));
+  const ratings = ratingsOf(active, year, progress);
+  const score = ratings.score;
 
   // G1 を目標にする馬：同じ年齢の上位にいて、数週以内に向いた G1 がある
   const g1Ahead = upcomingG1(serial, ENTRY.g1Horizon);
-  const topByAge = new Map<number, number>();
-  for (const h of active) {
-    const age = ageOf(h, year);
-    const r = score.get(h.id)!;
-    topByAge.set(age, Math.max(topByAge.get(age) ?? 0, r));
-  }
-  /**
-   * 2・3歳の牝馬は、牝馬限定でないレース（牡馬クラシックなど）にはほとんど出ない。
-   * 同世代のトップと互角の、ずば抜けた牝馬だけが挑む
-   */
-  const fillyStaysHome = (h: WorldHorse, race: Pick<ProgramRace, 'age' | 'fillies'>) =>
-    h.sex === 'filly' &&
-    !race.fillies &&
-    (race.age === '2' || race.age === '3') &&
-    score.get(h.id)! < (topByAge.get(ageOf(h, year)) ?? 0) - ENTRY.fillyVsColts;
+  const fillyStaysHome = (h: WorldHorse, race: Pick<ProgramRace, 'age' | 'fillies'>) => fillyAvoidsColts(h, race, year, ratings);
   /** G1 に出たい馬の条件（年齢・性別・距離・勝ち鞍） */
   const wantsG1 = (h: WorldHorse, g: ProgramRace) =>
     ageOk(g, ageOf(h, year)) &&
@@ -349,6 +368,8 @@ export function weekCard(world: World): WeekCard {
         underYearCap(h, year) &&
         (p.age === '2' ? h.starts > 0 : h.wins > 0) &&
         (loose || h.tier === 'open' || h.tier === '3win' || p.age === '2' || p.age === '3') &&
+        // 古馬の G1 の補充はオープン馬だけ（ユーザー指定。足りなければ少頭数で行う）
+        (!loose || p.raceClass !== 'G1' || p.age === '2' || p.age === '3' || h.tier === 'open') &&
         fit >= (loose ? ENTRY.looseFit : -2.5) &&
         (loose || (p.raceClass === 'G1' ? g1DistanceOk(h, p) : distanceOk(h, p.distance, serial, p.no))) &&
         (loose || !fillyStaysHome(h, p)) &&
@@ -381,7 +402,11 @@ export function weekCard(world: World): WeekCard {
           .filter((x) => !have.has(x.h.id))
           .map((x) => ({
             ...x,
-            s: p.raceClass === 'G1' ? -1e7 + 2 * aptitudeFit(x.h, p.surface, p.distance) + Math.log10(1 + money.get(x.h.id)!) : x.s - 100,
+            // G1 の補充は勝ち上がった馬（収得賞金のある馬）が先、その中では距離の合う馬から
+            s:
+              p.raceClass === 'G1'
+                ? -1e7 + (x.h.wins > 0 ? 1000 : 0) + 2 * aptitudeFit(x.h, p.surface, p.distance) + Math.log10(1 + money.get(x.h.id)!)
+                : x.s - 100,
           }))
           .sort((a, b) => b.s - a.s)
           .slice(0, fillTo - pool.length);
