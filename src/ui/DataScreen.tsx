@@ -30,6 +30,8 @@ const TABS: { tab: DataTab; label: string }[] = [
 /** 馬名（タップで馬の詳細） */
 export function HorseLink({ id, name }: { id: number; name: string }) {
   const showHorse = useGame((s) => s.showHorse);
+  // 名簿にいない馬（交流 G1 の地方の馬）はリンクにしない
+  if (id <= 0) return <span>{name}</span>;
   return (
     <button type="button" className="horse-link" onClick={() => showHorse(id)}>
       {name}

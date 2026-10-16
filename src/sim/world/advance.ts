@@ -3,13 +3,13 @@ import { GRADED_RACES_2026, type Grade } from '../gradedRaces';
 import { Rng, hashSeed } from '../rng';
 import type { FinishRecord } from '../types';
 import { FIRST_YEAR, WEEKS_PER_YEAR, weekOf } from './calendar';
-import { WORLD, ageOf, currentStats, newHorse, rating } from './horses';
+import { WORLD, ageOf, aptitudeFit, currentStats, newHorse, rating } from './horses';
 import { ABROAD, abroadPower, overseasRanks } from './overseas';
-import { OFFSCREEN, SUMMER_RACES, offscreenEligible, offscreenRanks, type OffscreenRace } from './offscreen';
+import { OFFSCREEN, OFFSCREEN_G1, SUMMER_RACES, offscreenEligible, offscreenRanks, type OffscreenRace } from './offscreen';
 import { syutoku } from './prize';
 import { BALANCE } from '../balance';
 import { quickFinish } from './quick';
-import { fillyAvoidsColts, raceSetup, ratingsOf, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
+import { fillyAvoidsColts, planG1, raceSetup, ratingsOf, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
 import { RUNS_KEPT, type Award, type NewsItem, type Tier, type World, type WorldHorse } from './types';
 
 export { PRIZE, PRIZE_SHARE, firstPrize } from './prize';
@@ -121,18 +121,20 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
     }
   }
   runAbroad(world, card, byId, rng.fork(5));
-  // 中京の G1（画面に出ない）
-  for (const { race, horseIds } of card.offscreen) {
-    if (horseIds.length < 5) continue;
+  // 画面に出ない G1（中京の G1・交流 G1）
+  for (const [k, { race, horseIds }] of card.offscreen.entries()) {
+    if (horseIds.length < (race.locals ? 1 : 5)) continue;
     const horses = horseIds.map((id) => byId.get(id)!);
-    const ranks = offscreenRanks(race, horses, year, seasonProgress(week.index, WEEKS_PER_YEAR), rng.fork(9));
-    const top3 = recordOffscreen(world, race, horses, ranks, year, week.index, world.serial);
+    const ranks = offscreenRanks(race, horses, year, seasonProgress(week.index, WEEKS_PER_YEAR), rng.fork(9 + k * 31), card.top);
+    const runners = horses.length + (race.locals?.count ?? 0);
+    const top3 = recordOffscreen(world, race, horses, ranks, year, week.index, world.serial, runners);
+    const label = race.gradeLabel ?? race.grade;
     news(
       world,
       'offscreen',
       `${race.name}は${top3[0].name}が優勝`,
-      `${race.venue}の${race.name}（G1・${race.surface === 'turf' ? '芝' : 'ダート'}${race.distance}m）は${top3[0].name}が勝ちました。2着${top3[1]?.name ?? '—'}、3着${top3[2]?.name ?? '—'}。`,
-      top3.map((h) => h.id),
+      `${race.venue}の${race.name}（${label}・${race.surface === 'turf' ? '芝' : 'ダート'}${race.distance}m）は${top3[0].name}が勝ちました。2着${top3[1]?.name ?? '—'}、3着${top3[2]?.name ?? '—'}。`,
+      top3.map((h) => h.id).filter((id) => id > 0),
     );
     for (const h of horses) addFatigue(h, 'G1', race.distance, ranks[horses.indexOf(h)]);
   }
@@ -206,6 +208,8 @@ function recordOffscreen(
   year: number,
   weekIndex: number,
   lastWeek: number,
+  /** 出走頭数（交流 G1 は地方の馬を含む） */
+  runners = horses.length,
 ) {
   const first = firstPrize({ raceClass: race.grade, name: race.name, age: race.age, fillies: race.fillies });
   horses.forEach((h, k) => {
@@ -232,7 +236,7 @@ function recordOffscreen(
       raceClass: race.grade,
       surface: race.surface,
       distance: race.distance,
-      runners: horses.length,
+      runners,
       rank,
       time: 0,
       margin: '',
@@ -240,7 +244,10 @@ function recordOffscreen(
     if (h.runs.length > RUNS_KEPT) h.runs.splice(0, h.runs.length - RUNS_KEPT);
     h.lastWeek = Math.max(h.lastWeek ?? lastWeek, lastWeek);
   });
-  const top3 = [1, 2, 3].map((r) => horses[ranks.indexOf(r)]).filter(Boolean);
+  // 1〜3着。交流 G1 で地方の馬が入った着は、名簿にいないので id 0・「地方馬」とする
+  const top3 = [1, 2, 3]
+    .filter((r) => r <= runners)
+    .map((r) => horses[ranks.indexOf(r)] ?? { id: 0, name: '地方馬' });
   world.graded.push({
     year,
     week: weekIndex,
@@ -331,26 +338,49 @@ function afterSummer(world: World, year: number, rng: Rng) {
   const progress = seasonProgress(week.index, WEEKS_PER_YEAR);
   const money = new Map(active.map((h) => [h.id, syutoku(h)]));
   const ratings = ratingsOf(active, year, progress);
-  const ran = new Set<number>();
+  const plan = planG1(world, world.serial);
+  // G1 馬と、秋の G1 を目標にする馬（賞金・優先出走権が足りている馬）の多くは秋に備えて夏を休む（ユーザーの指示）。
+  // 休むかどうかは1頭につき1回だけ決める（以前はレースごとに決め直していて、ほとんどの G1 馬がどこかの夏の重賞に出ていた）
+  const restsInSummer = new Set(
+    active
+      .filter((h) => (h.graded.some((g) => g.grade === 'G1') || plan.g1Target(h) !== null) && !rng.chance(OFFSCREEN.eliteSummerRun))
+      .map((h) => h.id),
+  );
+  /**
+   * 出走馬の割り振り：収得賞金の高い馬から順に、まだ枠のある夏の重賞のうち一番向いたレース（向き不向き＋格＋小さなばらつき）に入れる。
+   * 以前は日付順にレースを埋めていたので、日付の早いレース（短距離ならアイビスSD）が上位の馬をまとめて取っていた
+   */
+  const sizes = SUMMER_RACES.map(() => rng.int(...OFFSCREEN.summerRunners));
+  const fields: WorldHorse[][] = SUMMER_RACES.map(() => []);
+  const pool = active
+    .filter(
+      (h) =>
+        !h.retired &&
+        !restsInSummer.has(h.id) &&
+        // 年間の出走数の上限に余裕のある馬だけ（秋の分を残す）
+        h.runs.filter((r) => r.year === year).length < OFFSCREEN.summerMaxStartsSoFar,
+    )
+    .map((h) => ({ h, key: money.get(h.id)! + rng.normal(0, 300) }))
+    .sort((x, y) => y.key - x.key);
+  for (const { h } of pool) {
+    let best = -1;
+    let bestScore = -Infinity;
+    SUMMER_RACES.forEach((race, i) => {
+      if (fields[i].length >= sizes[i]) return;
+      // 3歳の牝馬は牡馬相手の3歳重賞（ラジオNIKKEI賞）にはずば抜けた馬だけ
+      if (!offscreenEligible(h, race, year) || fillyAvoidsColts(h, race, year, ratings)) return;
+      const s = aptitudeFit(h, race.surface, race.distance) + (race.grade === 'G2' ? OFFSCREEN.g2Pull : 0) + rng.normal(0, OFFSCREEN.pickNoise);
+      if (s > bestScore) {
+        bestScore = s;
+        best = i;
+      }
+    });
+    if (best >= 0) fields[best].push(h);
+  }
   const results: { race: OffscreenRace; winner: WorldHorse }[] = [];
-  for (const race of SUMMER_RACES) {
-    const n = rng.int(...OFFSCREEN.summerRunners);
-    const field = active
-      .filter(
-        (h) =>
-          !h.retired &&
-          !ran.has(h.id) &&
-          offscreenEligible(h, race, year) &&
-          // 3歳の牝馬は牡馬相手の3歳重賞（ラジオNIKKEI賞）にはずば抜けた馬だけ
-          !fillyAvoidsColts(h, race, year, ratings) &&
-          // 年間の出走数の上限に余裕のある馬だけ（秋の分を残す）
-          h.runs.filter((r) => r.year === year).length < OFFSCREEN.summerMaxStartsSoFar,
-      )
-      .filter((h) => !h.graded.some((g) => g.grade === 'G1') || rng.chance(0.15))
-      .sort((x, y) => money.get(y.id)! - money.get(x.id)! + rng.normal(0, 300))
-      .slice(0, n);
+  for (const [i, race] of SUMMER_RACES.entries()) {
+    const field = fields[i];
     if (field.length < 6) continue;
-    for (const h of field) ran.add(h.id);
     const ranks = offscreenRanks(race, field, year, progress, rng);
     const top3 = recordOffscreen(world, race, field, ranks, year, Math.max(0, week.index - 1), world.serial - 1);
     const winner = top3[0];
@@ -436,7 +466,9 @@ function recentPoor(h: WorldHorse): boolean {
 const GRADE_POINTS: Record<Grade, number> = { G1: 100, G2: 30, G3: 12 };
 
 function awards(world: World, year: number) {
-  const raceInfo = new Map(GRADED_RACES_2026.map((g) => [g.name, g]));
+  const raceInfo = new Map<string, { surface: string; distance: number }>(
+    [...GRADED_RACES_2026, ...SUMMER_RACES, ...OFFSCREEN_G1].map((g) => [g.name, g]),
+  );
   const rows = world.horses
     .map((h) => {
       const wins = h.graded.filter((g) => g.year === year);

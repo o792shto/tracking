@@ -25,6 +25,14 @@ const G1_PRIZE: Record<string, number> = {
   大阪杯: 30000,
   皐月賞: 20000,
   菊花賞: 20000,
+  // 交流 G1（2026年の1着賞金）
+  川崎記念: 10000,
+  かしわ記念: 8000,
+  さきたま杯: 8000,
+  帝王賞: 8000,
+  マイルCS南部杯: 8000,
+  JBCクラシック: 10000,
+  東京大賞典: 10000,
 };
 
 /**
@@ -59,7 +67,8 @@ const GRADED_INFO = new Map<string, { grade: 'G1' | 'G2' | 'G3'; name: string; a
 /**
  * 収得賞金（万円）。G1 などの出走順に使う。獲得賞金の総額ではなく、勝ち鞍（特に重賞）を重く見る。
  * 実際の JRA の計算の細かい規定は再現しておらず、おおよその目安：
- * 条件戦の勝ちは所属クラスから、重賞の勝ちは1着賞金の半分、近走の重賞2着は1着賞金の4分の1
+ * 条件戦の勝ちは所属クラスから、重賞の勝ちは1着賞金の半分、オープン特別の勝ちも1着賞金の半分（近10走の分）、
+ * 近走の重賞2着は1着賞金の4分の1
  */
 export function syutoku(h: Pick<WorldHorse, 'tier' | 'graded' | 'runs'>): number {
   let v = h.tier === 'open' && h.graded.length > 0 ? CONDITION_SYUTOKU['3win'] : CONDITION_SYUTOKU[h.tier];
@@ -68,6 +77,7 @@ export function syutoku(h: Pick<WorldHorse, 'tier' | 'graded' | 'runs'>): number
     v += (info ? firstPrize({ raceClass: info.grade, name: info.name, age: info.age, fillies: info.fillies }) : 20000) / 2;
   }
   for (const r of h.runs) {
+    if (!r.grade && r.raceClass === 'open' && r.rank === 1) v += PRIZE.open / 2;
     if (r.grade && r.rank === 2) {
       const info = GRADED_INFO.get(r.race);
       if (info) v += firstPrize({ raceClass: info.grade, name: info.name, age: info.age, fillies: info.fillies }) / 4;

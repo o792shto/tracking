@@ -5,7 +5,7 @@ import { Rng, hashSeed } from '../rng';
 import { type Entry, type PastRun, type RaceSetup, type Surface, type TrackCondition } from '../types';
 import { WEEKS_PER_YEAR, weekOf, type RaceWeek } from './calendar';
 import { ABROAD, overseasRacesOf, type OverseasRace } from './overseas';
-import { OFFSCREEN, offscreenEligible, offscreenG1Of, type OffscreenRace } from './offscreen';
+import { offscreenEligible, offscreenG1Of, offscreenJraRunners, type OffscreenRace } from './offscreen';
 import { ageOf, aptitudeFit, currentStats, rating, simHorse } from './horses';
 import { BALANCE, PREP_ROUTES } from '../balance';
 import { syutoku } from './prize';
@@ -36,8 +36,10 @@ export interface WeekCard {
   races: CardRace[];
   /** 海外のレースに遠征する日本馬（top はその週の日本の現役トップの総合力） */
   abroad: { race: OverseasRace; horseIds: number[]; top: number }[];
-  /** 画面に出ない国内の G1（中京）の出走馬 */
+  /** 画面に出ない国内の G1（中京・交流 G1）の出走馬 */
   offscreen: { race: OffscreenRace; horseIds: number[] }[];
+  /** その週の日本の現役トップの水準（3歳以上の上位5頭目の総合力。海外・交流 G1 の相手の強さの基準） */
+  top: number;
 }
 
 /** 年の進み具合（0〜1）。週の番号から */
@@ -58,8 +60,13 @@ const TIER_BELOW: Partial<Record<Tier, Tier>> = { '1win': 'maiden', '2win': '1wi
 /** 出走表を作るときの調整値 */
 export const ENTRY = {
   // 出走間隔・疲労・距離は balance.ts
-  /** 1年に走る数の上限（G1 馬・オープン馬・それ以外） */
-  yearCap: { g1Winner: 6, open: 7, other: 9 },
+  /**
+   * 1年に走る数の上限（G1 馬・オープン馬・それ以外）。G1 馬は7走（ユーザーの指示。6走では秋の G1 に届く前に使い切り、
+   * 有馬記念に G1 馬がほとんど出なかった）
+   */
+  yearCap: { g1Winner: 7, open: 7, other: 9 },
+  /** 年間の上限に G1 の出走を数えるか（false なら G1 以外だけを数える） */
+  capCountsG1: true,
   /** 出走を決めるときの距離・馬場の適性の下限（これより合わない馬は出さない） */
   minFit: -3.5,
   /** 頭数が足りないときに緩める下限 */
@@ -68,8 +75,8 @@ export const ENTRY = {
   g1FillTo: 12,
   /** 出走表が成り立つ最少頭数 */
   minRunners: 5,
-  /** G1 を目標にする馬は、G1 の何週前までなら前哨戦に出るか（これより近いと出ない） */
-  prepBefore: 4,
+  /** G1 を目標にする馬は、G1 の何週前までなら前哨戦に出るか（これより近いと出ない。セントウルS・根岸S・アルゼンチン共和国杯は3週前） */
+  prepBefore: 3,
   /** 前哨戦に出るのは、何週以上休んだあと（休み明けの1戦だけ） */
   prepAfterRest: 8,
   /** G1 を目標にする目安の期間（週）。冬の間もクラシックを見すえる */
@@ -179,12 +186,16 @@ function available(h: WorldHorse, serial: number, minRest: number, fatigueSlack 
   return weeksRested(h, serial) >= minRest;
 }
 
-/** 前走からあける週の数。G1 を走ったあとは長めに休む（次も G1 ならやや短く） */
-export function restNeeded(h: WorldHorse, _toG1 = false): number {
+/**
+ * 前走からあける週の数。G1 を走ったあとは長めに休む。
+ * G1 から G1 へは、2400m 以上の1週延長をしない（ジャパンC → 有馬記念、天皇賞・秋 → ジャパンC が組めるように）
+ */
+export function restNeeded(h: WorldHorse, toG1 = false): number {
   const R = BALANCE.rotation;
   const last = h.runs[h.runs.length - 1];
   if (!last) return 0;
   const min = last.grade === 'G1' ? R.minAfterG1 : last.grade ? R.minAfterGraded : R.minAfterCondition;
+  if (toG1 && last.grade === 'G1') return min;
   return min + (last.distance >= R.longRaceDistance ? R.longRaceExtra : 0);
 }
 
@@ -216,39 +227,20 @@ function distanceOk(h: WorldHorse, distance: number, serial: number, no: number)
 
 /** その年にあと何走できるか（使い詰めにしない） */
 function underYearCap(h: WorldHorse, year: number): boolean {
-  const n = h.runs.filter((r) => r.year === year).length;
+  const n = h.runs.filter((r) => r.year === year && (ENTRY.capCountsG1 || r.grade !== 'G1')).length;
   const cap = h.graded.some((g) => g.grade === 'G1') ? ENTRY.yearCap.g1Winner : h.tier === 'open' ? ENTRY.yearCap.open : ENTRY.yearCap.other;
   return n < cap;
 }
 
-/** その週の出走表（番組と出走馬）。同じ週に1頭が出るのは1レースまで */
-export function weekCard(world: World): WeekCard {
-  const serial = world.serial;
+/**
+ * その週の、G1 を目標にする馬の見立て（週の出走表と夏の重賞で共通に使う）。
+ * 能力・年齢・収得賞金はこの週の値で比べる
+ */
+export function planG1(world: World, serial: number) {
   const { year, week } = weekOf(serial);
   const progress = seasonProgress(week.index, WEEKS_PER_YEAR);
-  const rng = new Rng(hashSeed(world.seed ^ Math.imul(serial + 1000, 0x9e3779b1)));
-  const conditions: Record<Surface, TrackCondition>[] = [];
-  const races: CardRace[] = [];
-  week.days.forEach((day, dayIndex) => {
-    const dayRng = rng.fork(dayIndex + 1);
-    conditions.push(dayCondition(dayRng.fork(1)));
-    for (const program of venueDayProgram(day, dayRng.fork(2))) {
-      races.push({
-        dayIndex,
-        no: program.no,
-        program,
-        grade: isGraded(program.raceClass) ? program.raceClass : null,
-        visible: VISIBLE_RACES.includes(program.no),
-        seed: hashSeed(world.seed + serial * 1009 + dayIndex * 37 + program.no),
-        horseIds: [],
-      });
-    }
-  });
-
-  // 能力・年齢はこの週の値で比べる
   const active = world.horses.filter((h) => !h.retired && ageOf(h, year) >= 2);
   const ratings = ratingsOf(active, year, progress);
-  const score = ratings.score;
 
   // G1 を目標にする馬：同じ年齢の上位にいて、数週以内に向いた G1 がある
   const g1Ahead = upcomingG1(serial, ENTRY.g1Horizon);
@@ -306,15 +298,58 @@ export function weekCard(world: World): WeekCard {
   };
   /** 希望の間隔より短いときの選ばれにくさ */
   const shortRest = (h: WorldHorse) => BALANCE.rotation.shortPenalty * Math.max(0, desiredRest(h) - weeksRested(h, serial));
+  return { active, ratings, money, g1Target, skipsForG1, fillyStaysHome, shortRest, wantsG1 };
+}
+
+/** その週の出走表（番組と出走馬）。同じ週に1頭が出るのは1レースまで */
+export function weekCard(world: World): WeekCard {
+  const serial = world.serial;
+  const { year, week } = weekOf(serial);
+  const rng = new Rng(hashSeed(world.seed ^ Math.imul(serial + 1000, 0x9e3779b1)));
+  const conditions: Record<Surface, TrackCondition>[] = [];
+  const races: CardRace[] = [];
+  week.days.forEach((day, dayIndex) => {
+    const dayRng = rng.fork(dayIndex + 1);
+    conditions.push(dayCondition(dayRng.fork(1)));
+    for (const program of venueDayProgram(day, dayRng.fork(2))) {
+      races.push({
+        dayIndex,
+        no: program.no,
+        program,
+        grade: isGraded(program.raceClass) ? program.raceClass : null,
+        visible: VISIBLE_RACES.includes(program.no),
+        seed: hashSeed(world.seed + serial * 1009 + dayIndex * 37 + program.no),
+        horseIds: [],
+      });
+    }
+  });
+
+  // 能力・年齢・G1 の目標はこの週の値で決める
+  const plan = planG1(world, serial);
+  const { active, ratings, money, g1Target, skipsForG1, fillyStaysHome, shortRest } = plan;
+  const score = ratings.score;
+  /**
+   * G1 馬と G1 を目標にする馬（一流馬）は、オープン特別には出ず、G1 以外の重賞は春（1〜6月）・秋（9〜12月）にそれぞれ1つまで
+   * （前哨戦を1つ使って G1 へ。G1 中心のローテーションにする）
+   */
+  const month = week.days[0].month;
+  const eliteSkips = (h: WorldHorse, race: ProgramRace) => {
+    if (!h.graded.some((g) => g.grade === 'G1') && g1Target(h) === null) return false;
+    if (race.raceClass === 'open') return true;
+    const spring = month <= 6;
+    return h.runs.some(
+      (r) => r.year === year && !r.abroad && (r.grade === 'G2' || r.grade === 'G3') && (spring ? r.month <= 6 : r.month >= 9),
+    );
+  };
 
   const used = new Set<number>();
 
-  // 中京の G1（画面に出ない）：収得賞金順に出走馬を決める
+  // 画面に出ない G1（中京・交流 G1）：収得賞金順に出走馬を決める
   const offscreen = offscreenG1Of(week.index).map((race) => {
     const horseIds = active
-      .filter((h) => !used.has(h.id) && offscreenEligible(h, race, year) && available(h, serial, restNeeded(h)) && underYearCap(h, year))
+      .filter((h) => !used.has(h.id) && offscreenEligible(h, race, year) && available(h, serial, restNeeded(h, true)) && underYearCap(h, year))
       .sort((a, b) => money.get(b.id)! - money.get(a.id)!)
-      .slice(0, OFFSCREEN.g1Runners)
+      .slice(0, offscreenJraRunners(race))
       .map((h) => h.id);
     for (const id of horseIds) used.add(id);
     return { race, horseIds };
@@ -333,7 +368,7 @@ export function weekCard(world: World): WeekCard {
           h.tier === 'open' &&
           score.get(h.id)! >= top - ABROAD.margin &&
           aptitudeFit(h, race.surface, race.distance) >= ABROAD.minFit &&
-          available(h, serial, restNeeded(h)) &&
+          available(h, serial, restNeeded(h, true)) &&
           underYearCap(h, year),
       )
       .sort((a, b) => score.get(b.id)! - score.get(a.id)!);
@@ -364,8 +399,9 @@ export function weekCard(world: World): WeekCard {
       // 2歳の重賞は未勝利馬も出られる。それ以外は1勝以上
       const eligible = (h: WorldHorse, fit: number, loose: boolean) =>
         base(h) &&
-        available(h, serial, restNeeded(h)) &&
+        available(h, serial, restNeeded(h, p.raceClass === 'G1')) &&
         underYearCap(h, year) &&
+        (p.raceClass === 'G1' || !eliteSkips(h, p)) &&
         (p.age === '2' ? h.starts > 0 : h.wins > 0) &&
         (loose || h.tier === 'open' || h.tier === '3win' || p.age === '2' || p.age === '3') &&
         // 古馬の G1 の補充はオープン馬だけ（ユーザー指定。足りなければ少頭数で行う）
@@ -455,7 +491,7 @@ export function weekCard(world: World): WeekCard {
     race.horseIds = pickRng.shuffle(chosen);
     race.program = { ...p, runners: chosen.length };
   }
-  return { serial, year, week, conditions, races, abroad, offscreen };
+  return { serial, year, week, conditions, races, abroad, offscreen, top };
 }
 
 /** これから horizon 週以内（今週を含む）の G1 と、何週先か */
@@ -467,6 +503,11 @@ function upcomingG1(serial: number, horizon: number): { race: ProgramRace; weeks
       for (const g of [d.main, d.last]) {
         if (g?.grade === 'G1') out.push({ race: { no: 11, ...mainRaceOf(g), runners: 18 }, weeks: k });
       }
+    }
+    // 画面に出ない G1（中京・交流 G1）も目標になる（名簿の馬が出られる頭数で賞金の目安を見る）
+    for (const o of offscreenG1Of(week.index)) {
+      const { name, surface, distance, age, fillies } = o;
+      out.push({ race: { no: 11, raceClass: 'G1', name, surface, distance, age, fillies, runners: offscreenJraRunners(o) }, weeks: k });
     }
   }
   return out;

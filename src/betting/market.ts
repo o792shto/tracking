@@ -26,9 +26,17 @@ export function reputation(entry: RaceSetup['entries'][number]): number {
   return rep;
 }
 
-/** 見た目の強さと実績から各馬の勝率を推定する（ソフトマックス） */
+/**
+ * 見た目の強さと実績から各馬の勝率を推定する（ソフトマックス）。
+ * 抜けた本命は、2番手との差を leaderGapShrink の割合だけ縮めて見る（展開や当日の出来で取りこぼすぶん。
+ * 縮めないと、抜けた本命のいるレースで2〜5番人気の単勝が安く売られていた）。単勝と組み合わせの券種の両方の元になる
+ */
 export function winProbabilities(setup: RaceSetup): number[] {
   const s = apparentStrength(setup, 'public').map((x, i) => x + reputation(setup.entries[i]));
+  if (BETTING.leaderGapShrink > 0 && s.length > 1) {
+    const sorted = [...s].sort((a, b) => b - a);
+    s[s.indexOf(sorted[0])] -= (sorted[0] - sorted[1]) * BETTING.leaderGapShrink;
+  }
   const max = Math.max(...s);
   const e = s.map((x) => Math.exp((x - max) / BETTING.strengthTemperature));
   const z = e.reduce((a, b) => a + b, 0);

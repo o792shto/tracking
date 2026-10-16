@@ -92,6 +92,23 @@ for (const patch of GRID) {
     const pay = settle(market, race.order);
     const n = race.setup.entries.length;
     const won = race.order[0];
+    // 1番人気のオッズ帯ごとの、1番人気と2〜5番人気の単勝（sharp_probe と同じ）
+    {
+      const fav = Math.min(...board.win);
+      const band = fav < 1.5 ? 'b1.1-1.4' : fav < 2 ? 'b1.5-1.9' : fav < 3 ? 'b2.0-2.9' : 'b3.0+';
+      race.setup.entries.forEach((e, i) => {
+        const pop = board.popularity[i];
+        const hit = e.number === won;
+        if (pop === 1) add(`${band} fav`, 1, hit ? board.win[i] : 0, hit);
+        else if (pop <= 5) add(`${band} 2-5`, 1, hit ? board.win[i] : 0, hit);
+        else add(`${band} 6+`, 1, hit ? board.win[i] : 0, hit);
+        if (band === 'b1.1-1.4') {
+          // オッズが示す勝率（0.8/オッズ）と実際の勝ち（人気ごと）
+          const g = pop === 1 ? 'p1' : pop === 2 ? 'p2' : pop <= 5 ? 'p3-5' : 'p6+';
+          calib(`fav14 ${g}`, 0.8 / board.win[i], hit);
+        }
+      });
+    }
     race.setup.entries.forEach((e, i) => {
       const pop = board.popularity[i];
       const o = board.win[i];
