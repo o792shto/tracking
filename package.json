@@ -15,7 +15,9 @@
     "sim:season": "tsx tools/simulate_season.ts",
     "docs:bundle": "node scripts/bundle-for-ai.mjs",
     "sim:probe": "tsx tools/strategy_probe.ts",
-    "sim:tune": "tsx tools/market_tune.ts"
+    "sim:tune": "tsx tools/market_tune.ts",
+    "sim:elite": "tsx tools/elite_probe.ts",
+    "sim:sharp": "tsx tools/sharp_probe.ts"
   },
   "dependencies": {
     "react": "^19.3.0",
