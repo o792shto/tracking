@@ -9,6 +9,7 @@
 - `npm run build` — 型チェック + 本番ビルド
 - `npm run sim:report` — 1000レースの統計表を表示
 - `npm run sim:season` — 名簿の世界を画面なしで10年分動かし、人気別成績・オッズ帯・配当・ローテーションの計測レポートを `reports/realism_report.md` に書く（約2分。`-- --years 3` などで短く）
+- `npm run docs:bundle` — AI向けの全体資料（`docs/GAME_ANALYSIS_FOR_AI.md`）・仕様・計測レポート・全ソースを `dist/ai-source-bundle.md` にまとめる。仕組みや調整値を変えたら全体資料も直す
 - `npm run tracks:import` — コース形状データ（docs/reference/jra-tracks）から src/sim/trackData.ts を作り直す
 
 ## ルール
