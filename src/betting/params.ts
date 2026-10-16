@@ -6,14 +6,14 @@ export const BETTING = {
    * 見た目の強さ（m/s 換算）から勝率を出すソフトマックスの温度。単勝の票は「温度 ÷ favoriteBias」だけで決まり、
    * 組み合わせの券種は温度だけで決まる（comboFavoriteBias = 1）。tools/market_tune.ts で2つのシードに合わせた
    */
-  strengthTemperature: 0.11,
+  strengthTemperature: 0.1,
   /** 大衆の偏り：勝率の何乗に比例して票が入るか（1より大きいと人気馬に票が寄る） */
-  favoriteBias: 1.1,
+  favoriteBias: 1,
   /**
    * 2着・3着の強さの補正（勝率を λ 乗して正規化、Henery / Stern 型）。1 で Harville の公式。
    * 1より小さいと、本命が2・3着に入る確率を低く、人気薄を高く見る（組み合わせ馬券の値付けに使う）
    */
-  comboLambda: [0.8, 0.7] as [number, number],
+  comboLambda: [0.9, 0.8] as [number, number],
   /**
    * 組み合わせの券種の票の偏り（推定確率の何乗に比例して票が入るか）。1 より大きいと本命の組み合わせが売れすぎて、
    * 大穴の組み合わせが安く売られる（全通り買いで儲かってしまう）
@@ -23,18 +23,13 @@ export const BETTING = {
    * 実績による人気の上乗せ（m/s 換算。G1 1勝ごと・G1 以外の重賞1勝ごと・近3走の重賞3着以内1回ごと）。
    * fatigue は疲労1あたりの割引（本当の割引の8割ほど。ファンには間隔からある程度わかる）
    */
-  reputation: { g1: 0.025, graded: 0.01, gradedPlace: 0.008, fatigue: 0.2 },
+  reputation: { g1: 0.0125, graded: 0.005, gradedPlace: 0.004, fatigue: 0.2 },
   /** 抜けた本命の、2番手との強さの差を縮める割合（0で縮めない） */
-  leaderGapShrink: 0,
-  /**
-   * 一番強い馬との強さの差の変換：d → scale × (d / scale)^exponent（m/s 換算）。exponent = 1 で変えない。
-   * 1 より大きいと、本命と2番手の小さな差は縮み、本命と人気薄の大きな差は広がる
-   */
-  strengthGap: { exponent: 1, scale: 0.2 },
+  leaderGapShrink: 0.55,
   /** 前走で好走した馬への票の上乗せ（1着で +この割合、3着で半分程度） */
   recentFormBias: 0.35,
   /** 票のうち、全馬に均等に入る割合（記念買い・穴狙い）。人気薄のオッズの上限の目安になる */
-  longshotFloor: 0.07,
+  longshotFloor: 0.055,
   /** 複勝の票のうち、全馬に均等に入る割合 */
   placeFloor: 0.02,
   /**

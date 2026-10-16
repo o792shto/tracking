@@ -96,6 +96,12 @@ for (let k = 0; k < YEARS * WEEKS_PER_YEAR; k++) {
       }
       // 1倍台の本命
       if (odds < 2) bet('単勝 1倍台', odds, won);
+      // 1番人気のオッズ帯ごとの2〜5番人気（修正指示書2）
+      {
+        const fav = Math.min(...board.win);
+        const band = fav < 1.5 ? '1.1-1.4' : fav < 2 ? '1.5-1.9' : fav < 3 ? '2.0-2.9' : '3.0+';
+        if (pop >= 2 && pop <= 5) bet(`単勝 本命${band}倍のレースの2-5番人気`, odds, won);
+      }
       if (odds >= 10 && odds < 20) bet('単勝 10-19.9倍', odds, won);
     });
 

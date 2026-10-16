@@ -66,6 +66,10 @@ const CALIB_BANDS: Record<'exacta' | 'trifecta', [number, string][]> = {
 const calib = new Map<string, { exp: number; hit: number }>();
 /** 単勝オッズから逆算した勝率（Harville）で期待値1以上の馬連・馬単を買う（券種の間の値付けのずれを突く買い方） */
 const evBuy = { quinella: { stake: 0, ret: 0 }, exacta: { stake: 0, ret: 0 } };
+/** 1番人気のオッズ帯ごとの、2〜5番人気の単勝を全部買った回収率（修正指示書2 の sharp_probe と同じ） */
+const FAV_BANDS = ['1.1〜1.4倍', '1.5〜1.9倍', '2.0〜2.9倍', '3.0倍以上'] as const;
+const favBandOf = (o: number) => (o < 1.5 ? FAV_BANDS[0] : o < 2 ? FAV_BANDS[1] : o < 3 ? FAV_BANDS[2] : FAV_BANDS[3]);
+const second5 = new Map<string, { stake: number; ret: number }>();
 
 const intervalBins = { all: new Map<string, number>(), graded: new Map<string, number>() };
 const startsPerYear = { olderGraded: [] as number[], all: [] as number[] };
@@ -255,6 +259,17 @@ for (let k = 0; k < YEARS * WEEKS_PER_YEAR; k++) {
     });
     quinella.push(payouts.quinella.odds * 100);
     trifecta.push(payouts.trifecta.odds * 100);
+    {
+      const band = favBandOf(Math.min(...board.win));
+      const x = second5.get(band) ?? { stake: 0, ret: 0 };
+      setup.entries.forEach((e, i) => {
+        const pop = board.popularity[i];
+        if (pop < 2 || pop > 5) return;
+        x.stake++;
+        if (order[0] === e.number) x.ret += board.win[i];
+      });
+      second5.set(band, x);
+    }
     // 全通り買い
     allCombo.quinella.ret += payouts.quinella.odds;
     allCombo.wide.ret += payouts.wide.reduce((a, w) => a + w.odds, 0);
@@ -466,6 +481,10 @@ for (const t of COMBOS) {
   const roi = pct(allCombo[t].ret, allCombo[t].stake);
   const mid = (1 - BETTING.takeout[t]) * 100;
   add(`${COMBO_LABEL[t]}の全通り買い 回収率`, `${f1(mid)}%前後（±5）`, roi, mid - 5, mid + 5);
+}
+for (const band of FAV_BANDS) {
+  const x = second5.get(band) ?? { stake: 0, ret: 0 };
+  add(`1番人気${band}のレースの2〜5番人気の単勝 回収率`, '100%未満（指示書の目標は4シード平均で90%未満）', pct(x.ret, x.stake), 0, 99.99);
 }
 for (const t of ['quinella', 'exacta'] as const) {
   add(`単勝オッズから逆算した期待値1以上の${COMBO_LABEL[t]} 回収率`, '100%未満', pct(evBuy[t].ret, evBuy[t].stake), 0, 99.99);
