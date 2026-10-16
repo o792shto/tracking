@@ -19,7 +19,7 @@ import {
 } from '../betting';
 import { CONDITION_LABEL, SEX_LABEL, STYLE_LABEL, SURFACE_LABEL, formatPastRun } from '../sim';
 import { frameColor } from '../render';
-import { MARKS, placedTotal, useGame, type Mark } from '../store';
+import { MARKS, placedTotal, useGame, useSettings, type Mark } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { runQuietly, useRaceCard } from './useRace';
 import { unlockAudio } from './sound';
@@ -69,6 +69,8 @@ export function RaceCard() {
   const cancel = useGame((s) => s.cancel);
   const go = useGame((s) => s.go);
   const settleRace = useGame((s) => s.settle);
+  const sortByPopularity = useSettings((s) => s.sortByPopularity);
+  const setSortByPopularity = useSettings((s) => s.setSortByPopularity);
   const panelRef = useRef<HTMLElement>(null);
 
   const [board, setBoard] = useState(0);
@@ -106,6 +108,9 @@ export function RaceCard() {
   const odds = market.boards[board];
   const final = board === market.boards.length - 1;
   const { course, entries } = race.setup;
+  /** 出馬表の行の並び（馬番順か、いまのオッズの人気順） */
+  const rowOrder = entries.map((_, i) => i);
+  if (sortByPopularity) rowOrder.sort((x, y) => odds.popularity[x] - odds.popularity[y]);
   const picks = BET_TYPE_PICKS[type];
   const ordered = BET_TYPE_ORDERED[type];
   const total = placedTotal(placed);
@@ -196,10 +201,10 @@ export function RaceCard() {
     setActive(0);
   };
 
-  /** 観戦せずに走らせて、今週のレース一覧へ戻る（買った馬券は結果どおりに精算。詳細は一覧から） */
+  /** 観戦せずに走らせて、結果（着順・払い戻し）の画面へ（買った馬券は結果どおりに精算。ユーザーの指示） */
   const resultOnly = () => {
     const r = runQuietly(race);
-    settleRace(r.payouts, r.finishOrder, r.info, false);
+    settleRace(r.payouts, r.finishOrder, r.info, true);
   };
   const start = () => {
     // 効果音がオンなら、このタップで音を出せる状態にしておく（ブラウザの制限）
@@ -237,6 +242,18 @@ export function RaceCard() {
       </header>
 
       <div className="card-body">
+        <div className="seg-group sort-toggle" role="group" aria-label="出馬表の並び">
+          {(
+            [
+              [false, '馬番順'],
+              [true, '人気順'],
+            ] as const
+          ).map(([on, label]) => (
+            <button key={label} type="button" className={sortByPopularity === on ? 'seg on' : 'seg'} aria-pressed={sortByPopularity === on} onClick={() => setSortByPopularity(on)}>
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="table-wrap">
           <table className="entry-table">
             <thead>
@@ -254,7 +271,8 @@ export function RaceCard() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((e, i) => {
+              {rowOrder.map((i) => {
+                const e = entries[i];
                 const c = frameColor(e.frame);
                 const profile = profiles[i];
                 const mark = markOf(e.number);

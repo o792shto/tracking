@@ -880,6 +880,10 @@ h3 {
   background: transparent;
   cursor: pointer;
 }
+.sort-toggle {
+  grid-template-columns: repeat(2, minmax(0, 120px));
+  margin-bottom: 8px;
+}
 .seg-group .seg.on {
   background: var(--glow);
   border-color: var(--glow);

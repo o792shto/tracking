@@ -14,6 +14,8 @@ export interface Settings {
   commentary: boolean;
   /** ライトモード（デフォルトはオフ＝暗い画面） */
   light: boolean;
+  /** 出馬表を人気順に並べる（デフォルトはオフ＝馬番順） */
+  sortByPopularity: boolean;
 }
 
 export interface SettingsActions {
@@ -21,9 +23,10 @@ export interface SettingsActions {
   setSound: (on: boolean) => void;
   setCommentary: (on: boolean) => void;
   setLight: (on: boolean) => void;
+  setSortByPopularity: (on: boolean) => void;
 }
 
-const DEFAULTS: Settings = { lite: false, sound: false, commentary: true, light: false };
+const DEFAULTS: Settings = { lite: false, sound: false, commentary: true, light: false, sortByPopularity: false };
 const KEYS = Object.keys(DEFAULTS) as (keyof Settings)[];
 
 export function createSettingsStore(load = true) {
@@ -36,6 +39,7 @@ export function createSettingsStore(load = true) {
     setSound: (sound) => set({ sound }),
     setCommentary: (commentary) => set({ commentary }),
     setLight: (light) => set({ light }),
+    setSortByPopularity: (sortByPopularity) => set({ sortByPopularity }),
   }));
   store.subscribe((s) => saveJSON(SETTINGS_KEY, Object.fromEntries(KEYS.map((k) => [k, s[k]]))));
   return store;

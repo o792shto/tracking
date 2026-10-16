@@ -52,7 +52,7 @@ export function MeetingTop() {
           <small>（{meeting.label}）</small>
         </h1>
         <p>
-          今週の10R・11R（ダービーデーは12Rの目黒記念も）を発走順に行います。出馬表で馬券を買って発走させてください。毎週{formatCoins(BETTING.weeklyDeposit)}
+          今週の10R・11Rを発走順に行います。出馬表で馬券を買って発走させてください。毎週{formatCoins(BETTING.weeklyDeposit)}
           コインが入金されます。
         </p>
         {!done && (
