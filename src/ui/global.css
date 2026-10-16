@@ -2922,3 +2922,7 @@ button.link {
 .data-table tr.rank-3 td:first-child {
   box-shadow: inset 3px 0 0 var(--rank3);
 }
+/* 出馬表の列（並びの切り替え＋表）。.card-body のグリッドの左の列 */
+.card-main {
+  min-width: 0;
+}

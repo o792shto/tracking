@@ -242,6 +242,7 @@ export function RaceCard() {
       </header>
 
       <div className="card-body">
+        <div className="card-main">
         <div className="seg-group sort-toggle" role="group" aria-label="出馬表の並び">
           {(
             [
@@ -343,6 +344,7 @@ export function RaceCard() {
               })}
             </tbody>
           </table>
+        </div>
         </div>
 
         <aside className="bet-panel" aria-label="馬券購入" ref={panelRef}>
