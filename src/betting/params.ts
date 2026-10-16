@@ -13,7 +13,7 @@ export const BETTING = {
    * 2着・3着の強さの補正（勝率を λ 乗して正規化、Henery / Stern 型）。1 で Harville の公式。
    * 1より小さいと、本命が2・3着に入る確率を低く、人気薄を高く見る（組み合わせ馬券の値付けに使う）
    */
-  comboLambda: [0.9, 0.8] as [number, number],
+  comboLambda: [0.9, 0.7] as [number, number],
   /**
    * 組み合わせの券種の票の偏り（推定確率の何乗に比例して票が入るか）。1 より大きいと本命の組み合わせが売れすぎて、
    * 大穴の組み合わせが安く売られる（全通り買いで儲かってしまう）
@@ -42,7 +42,7 @@ export const BETTING = {
    * 組み合わせの券種の、全組み合わせに均等に入る票の割合（記念買い・穴狙い）。
    * 組み合わせが多いほど1点あたりは薄くなる
    */
-  comboFloor: { quinella: 0.02, wide: 0.005, exacta: 0.02, trio: 0.03, trifecta: 0.025 },
+  comboFloor: { quinella: 0.02, wide: 0.03, exacta: 0.02, trio: 0.03, trifecta: 0.025 },
   /** 確定時の票のばらつき（対数正規の標準偏差） */
   voteNoise: 0.2,
   /** 発走前のオッズ表示の回数と、早い段階ほど大きいばらつき */
