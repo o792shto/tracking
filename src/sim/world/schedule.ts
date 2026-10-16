@@ -83,6 +83,12 @@ export const ENTRY = {
   g1Horizon: 16,
   /** 2・3歳の牝馬が牡馬相手の重賞に出るのは、同世代のトップとの差がこれ以内の馬だけ */
   fillyVsColts: 1.5,
+  /**
+   * 古馬の牝馬が牝馬限定でない G1 に出るのは、4歳以上のトップとの総合力の差がこれ以内の馬だけ。
+   * それ以外の牝馬は牝馬限定の G1（ヴィクトリアマイル・エリザベス女王杯）を目標にする
+   * （以前は牝馬限定戦の賞金でそのまま混合 G1 に入り、古馬の混合 G1 の4〜7割が牝馬だった。ユーザーの指摘）
+   */
+  fillyVsOlderG1: 12,
   /** 古馬の牝馬が牝馬限定でない重賞に出るときの選ばれにくさ（点） */
   fillyOlderPenalty: 3,
 };
@@ -121,6 +127,8 @@ export const PRIORITY_TRIALS: Record<string, readonly (readonly [string, number]
 export interface Ratings {
   score: Map<number, number>;
   topByAge: Map<number, number>;
+  /** 4歳以上のトップの総合力 */
+  topOlder: number;
 }
 
 export function ratingsOf(horses: readonly WorldHorse[], year: number, progress: number): Ratings {
@@ -132,7 +140,9 @@ export function ratingsOf(horses: readonly WorldHorse[], year: number, progress:
     const age = ageOf(h, year);
     topByAge.set(age, Math.max(topByAge.get(age) ?? 0, r));
   }
-  return { score, topByAge };
+  let topOlder = 0;
+  for (const [age, r] of topByAge) if (age >= 4) topOlder = Math.max(topOlder, r);
+  return { score, topByAge, topOlder };
 }
 
 /**
@@ -141,13 +151,16 @@ export function ratingsOf(horses: readonly WorldHorse[], year: number, progress:
  */
 export function fillyAvoidsColts(
   h: WorldHorse,
-  race: { age: AgeCondition; fillies: boolean },
+  race: { age: AgeCondition; fillies: boolean; raceClass?: RaceClass; grade?: Grade },
   year: number,
   ratings: Ratings,
 ): boolean {
-  if (h.sex !== 'filly' || race.fillies || (race.age !== '2' && race.age !== '3')) return false;
+  if (h.sex !== 'filly' || race.fillies) return false;
   const r = ratings.score.get(h.id) ?? 0;
-  return r < (ratings.topByAge.get(ageOf(h, year)) ?? 0) - ENTRY.fillyVsColts;
+  if (race.age === '2' || race.age === '3') return r < (ratings.topByAge.get(ageOf(h, year)) ?? 0) - ENTRY.fillyVsColts;
+  // 古馬の混合 G1：ずば抜けた牝馬だけ（3歳の牝馬が3歳以上の G1 に出るときも同じ）
+  const g1 = race.raceClass === 'G1' || race.grade === 'G1';
+  return g1 && r < ratings.topOlder - ENTRY.fillyVsOlderG1;
 }
 
 /** 重賞の実績（重賞勝ちか、近4走の重賞3着以内）があるか */
@@ -244,7 +257,7 @@ export function planG1(world: World, serial: number) {
 
   // G1 を目標にする馬：同じ年齢の上位にいて、数週以内に向いた G1 がある
   const g1Ahead = upcomingG1(serial, ENTRY.g1Horizon);
-  const fillyStaysHome = (h: WorldHorse, race: Pick<ProgramRace, 'age' | 'fillies'>) => fillyAvoidsColts(h, race, year, ratings);
+  const fillyStaysHome = (h: WorldHorse, race: Pick<ProgramRace, 'age' | 'fillies' | 'raceClass'>) => fillyAvoidsColts(h, race, year, ratings);
   /** G1 に出たい馬の条件（年齢・性別・距離・勝ち鞍） */
   const wantsG1 = (h: WorldHorse, g: ProgramRace) =>
     ageOk(g, ageOf(h, year)) &&
@@ -347,7 +360,14 @@ export function weekCard(world: World): WeekCard {
   // 画面に出ない G1（中京・交流 G1）：収得賞金順に出走馬を決める
   const offscreen = offscreenG1Of(week.index).map((race) => {
     const horseIds = active
-      .filter((h) => !used.has(h.id) && offscreenEligible(h, race, year) && available(h, serial, restNeeded(h, true)) && underYearCap(h, year))
+      .filter(
+        (h) =>
+          !used.has(h.id) &&
+          offscreenEligible(h, race, year) &&
+          !fillyAvoidsColts(h, race, year, ratings) &&
+          available(h, serial, restNeeded(h, true)) &&
+          underYearCap(h, year),
+      )
       .sort((a, b) => money.get(b.id)! - money.get(a.id)!)
       .slice(0, offscreenJraRunners(race))
       .map((h) => h.id);
@@ -408,7 +428,8 @@ export function weekCard(world: World): WeekCard {
         (!loose || p.raceClass !== 'G1' || p.age === '2' || p.age === '3' || h.tier === 'open') &&
         fit >= (loose ? ENTRY.looseFit : -2.5) &&
         (loose || (p.raceClass === 'G1' ? g1DistanceOk(h, p) : distanceOk(h, p.distance, serial, p.no))) &&
-        (loose || !fillyStaysHome(h, p)) &&
+        // 古馬の混合 G1 は補充のときも牝馬の決まりを守る（補充で天皇賞・春の半分が牝馬になっていた）
+        ((loose && !(p.raceClass === 'G1' && p.age !== '2' && p.age !== '3')) || !fillyStaysHome(h, p)) &&
         (p.raceClass === 'G1' || !skipsForG1(h, p)) &&
         // 古馬の G1 は重賞の実績（勝ち鞍か近走の3着以内）がある馬（頭数が足りなければ補充で入る）
         (loose || p.raceClass !== 'G1' || p.age === '2' || p.age === '3' || hasGradedCredit(h));
