@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from 'vitest';
 import { advanceWeek, createWorld } from './advance';
 import { WEEKS_PER_YEAR, weekOf } from './calendar';
-import { ageOf } from './horses';
+import { ageOf, gradedPlaced } from './horses';
 import { raceSetup, weekCard, type WeekCard } from './schedule';
 import { simulateRace } from '../engine';
 import { apparentStrength } from '../rating';
@@ -57,6 +57,10 @@ describe('世界', () => {
           expect(ok, `${r.program.name} ${age}歳`).toBe(true);
           if (r.program.fillies) expect(h.sex).toBe('filly');
           if (r.program.raceClass === 'newcomer') expect(h.starts).toBe(0);
+          // 重賞で3着以内に入った馬は未勝利戦・新馬戦に出ない（阪神JF 2着の馬が未勝利戦を使っていた）
+          if (r.program.raceClass === 'maiden' || r.program.raceClass === 'newcomer') {
+            expect(gradedPlaced(h), `${h.name} ${r.program.name}`).toBe(false);
+          }
           // 重賞・オープンを勝った馬（オープン馬）は条件戦に出ない（オープン特別は別）
           if (!r.grade && r.program.raceClass !== 'open') expect(h.tier, `${h.name} ${r.program.name}`).not.toBe('open');
           expect(h.retired).toBeNull();

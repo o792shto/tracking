@@ -126,6 +126,14 @@ export function publicStats(h: WorldHorse, year: number, seasonProgress: number)
   return Object.fromEntries(STAT_KEYS.map((k) => [k, clampStat(h.potential[k] + offset)])) as unknown as HorseStats;
 }
 
+/**
+ * 重賞で3着以内に入ったことがあるか（近10走）。勝ち鞍がなくても、重賞で好走した馬は賞金を持っているので
+ * 重賞に出られ、未勝利戦・新馬戦には出ない（阪神JF 2着の馬が3歳の未勝利戦を走るのはおかしい。ユーザーの指摘）
+ */
+export function gradedPlaced(h: Pick<WorldHorse, 'runs'>): boolean {
+  return h.runs.some((r) => r.grade !== null && r.rank <= 3);
+}
+
 /** 総合力の目安（出走馬を選ぶとき・表彰の参考） */
 export function rating(stats: HorseStats): number {
   return stats.speed * 0.3 + stats.stamina * 0.25 + stats.kick * 0.3 + stats.power * 0.05 + stats.start * 0.05 + stats.temperament * 0.05;

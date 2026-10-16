@@ -6,7 +6,7 @@ import { type Entry, type PastRun, type RaceSetup, type Surface, type TrackCondi
 import { WEEKS_PER_YEAR, weekOf, type RaceWeek } from './calendar';
 import { ABROAD, overseasRacesOf, type OverseasRace } from './overseas';
 import { offscreenEligible, offscreenG1Of, offscreenJraRunners, type OffscreenRace } from './offscreen';
-import { ageOf, aptitudeFit, currentStats, rating, simHorse } from './horses';
+import { ageOf, aptitudeFit, currentStats, rating, simHorse, gradedPlaced } from './horses';
 import { BALANCE, PREP_ROUTES } from '../balance';
 import { syutoku } from './prize';
 import type { RunRecord, Tier, World, WorldHorse } from './types';
@@ -250,7 +250,7 @@ export function planG1(world: World, serial: number) {
     ageOk(g, ageOf(h, year)) &&
     (!g.fillies || h.sex === 'filly') &&
     !fillyStaysHome(h, g) &&
-    (g.age === '2' ? h.starts > 0 : h.wins > 0) &&
+    (g.age === '2' ? h.starts > 0 : h.wins > 0 || gradedPlaced(h)) &&
     aptitudeFit(h, g.surface, g.distance) > -2.5 &&
     g1DistanceOk(h, g);
   /** これからの G1 それぞれの、賞金で出走できる目安（出走頭数番目の賞金） */
@@ -402,7 +402,7 @@ export function weekCard(world: World): WeekCard {
         available(h, serial, restNeeded(h, p.raceClass === 'G1')) &&
         underYearCap(h, year) &&
         (p.raceClass === 'G1' || !eliteSkips(h, p)) &&
-        (p.age === '2' ? h.starts > 0 : h.wins > 0) &&
+        (p.age === '2' ? h.starts > 0 : h.wins > 0 || gradedPlaced(h)) &&
         (loose || h.tier === 'open' || h.tier === '3win' || p.age === '2' || p.age === '3') &&
         // 古馬の G1 の補充はオープン馬だけ（ユーザー指定。足りなければ少頭数で行う）
         (!loose || p.raceClass !== 'G1' || p.age === '2' || p.age === '3' || h.tier === 'open') &&
@@ -463,6 +463,8 @@ export function weekCard(world: World): WeekCard {
         }
         // G1 に出られる賞金・権利のある馬は、条件戦には出ずに G1 へ向かう
         if (g1Target(h) !== null) return false;
+        // 重賞で3着以内に入った馬は、未勝利戦・新馬戦には出ない（重賞・オープンへ）
+        if ((p.raceClass === 'maiden' || p.raceClass === 'newcomer') && gradedPlaced(h)) return false;
         if (p.raceClass === 'newcomer') return h.starts === 0;
         // 未勝利戦はデビューした馬が先（頭数が足りなければ未出走の馬も出る）
         if (h.tier === tier) return p.raceClass !== 'maiden' || h.starts > 0 || loose;

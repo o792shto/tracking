@@ -1,7 +1,7 @@
 import type { AgeCondition, Grade } from '../gradedRaces';
 import type { Rng } from '../rng';
 import type { Surface } from '../types';
-import { ageOf, aptitudeFit, currentStats, rating } from './horses';
+import { ageOf, aptitudeFit, currentStats, rating, gradedPlaced } from './horses';
 import { overseasWeek } from './overseas';
 import type { WorldHorse } from './types';
 
@@ -111,7 +111,7 @@ export function offscreenEligible(h: WorldHorse, race: OffscreenRace, year: numb
   if (h.retired) return false;
   if (!ageFits(race, ageOf(h, year))) return false;
   if (race.fillies && h.sex !== 'filly') return false;
-  if (h.wins === 0) return false;
+  if (h.wins === 0 && !gradedPlaced(h)) return false;
   if (race.grade !== 'G1' && h.tier !== 'open' && h.tier !== '3win' && race.age !== '3') return false;
   if (aptitudeFit(h, race.surface, race.distance) <= -2.5) return false;
   return Math.abs(race.distance - h.bestDistance) <= OFFSCREEN.maxDistanceDiff;
