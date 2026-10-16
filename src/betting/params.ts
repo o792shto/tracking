@@ -26,6 +26,11 @@ export const BETTING = {
   reputation: { g1: 0.025, graded: 0.01, gradedPlace: 0.008, fatigue: 0.2 },
   /** 抜けた本命の、2番手との強さの差を縮める割合（0で縮めない） */
   leaderGapShrink: 0,
+  /**
+   * 一番強い馬との強さの差の変換：d → scale × (d / scale)^exponent（m/s 換算）。exponent = 1 で変えない。
+   * 1 より大きいと、本命と2番手の小さな差は縮み、本命と人気薄の大きな差は広がる
+   */
+  strengthGap: { exponent: 1, scale: 0.2 },
   /** 前走で好走した馬への票の上乗せ（1着で +この割合、3着で半分程度） */
   recentFormBias: 0.35,
   /** 票のうち、全馬に均等に入る割合（記念買い・穴狙い）。人気薄のオッズの上限の目安になる */

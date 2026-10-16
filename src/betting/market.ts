@@ -37,6 +37,12 @@ export function winProbabilities(setup: RaceSetup): number[] {
     const sorted = [...s].sort((a, b) => b - a);
     s[s.indexOf(sorted[0])] -= (sorted[0] - sorted[1]) * BETTING.leaderGapShrink;
   }
+  // 一番強い馬との差 d を scale × (d / scale)^exponent に変える（exponent > 1 なら、小さい差は縮み、大きい差は広がる）
+  const { exponent, scale } = BETTING.strengthGap;
+  if (exponent !== 1) {
+    const top = Math.max(...s);
+    for (let i = 0; i < s.length; i++) s[i] = top - scale * Math.pow((top - s[i]) / scale, exponent);
+  }
   const max = Math.max(...s);
   const e = s.map((x) => Math.exp((x - max) / BETTING.strengthTemperature));
   const z = e.reduce((a, b) => a + b, 0);
