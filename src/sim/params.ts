@@ -144,18 +144,28 @@ export const PARAMS = {
   slopeSpeed: 0.012,
   slopeBurn: 0.12,
 
+  /** 前が壁のとき、前の馬との間を詰める距離（m、鼻から鼻）。1馬身（2.4m）より短いと、前の馬の体に重なる */
+  followGap: 2.6,
   /** 前の馬との距離がこれ未満で同じ進路なら「前が壁」 */
-  blockDistance: 2.4,
+  blockDistance: 3.2,
   /** 進路の幅（m）。これより横に離れていれば別の進路 */
   laneWidth: 1.1,
   /** 横移動速度（m/s） */
   lateralSpeed: 0.9,
   /**
-   * 内へ寄せるときに空いていてほしい前後の距離（m）。前は詰まり（blockDistance）より少し長く、
-   * 前の馬の真後ろに入れる。広すぎると外枠の馬がいつまでも外を回らされる
+   * 内へ寄せるときに空いていてほしい前後の距離（m）。前の馬の真後ろ（1馬身ほど後ろ）に入れる。
+   * 広すぎると外枠の馬がいつまでも外を回らされる
    */
   tuckAhead: 2.5,
   tuckBehind: 1.0,
+  /**
+   * 馬ごとの走りたい進路（内ラチから何頭分外か）。逃げ・先行は内、差し・追込は外めを回る。
+   * これに 0〜preferredJitter 頭分のばらつきと、外枠ほど少し外（枠の位置 × preferredFrame 頭分）を足す。
+   * これより内へは自分から寄せない（以前は前が空けば誰もが内ラチへ寄せ、道中の6割が内ラチ沿いに一列だった）
+   */
+  preferredLane: { nige: 0, senko: 0.1, sashi: 0.4, oikomi: 0.7 } as Record<RunningStyle, number>,
+  preferredJitter: 0.6,
+  preferredFrame: 0.2,
   /** 横位置の判断間隔（ステップ） */
   lateralInterval: 6,
   /** 進路が開かないイベントの確率（1レースで1頭あたり）と持続（秒） */

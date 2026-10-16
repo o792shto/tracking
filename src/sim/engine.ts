@@ -51,6 +51,8 @@ interface Runner {
   trafficTrouble: boolean;
   stuckUntil: number;
   targetX: number;
+  /** 走りたい進路（内ラチからの横位置、m）。これより内へは自分から寄せない */
+  homeX: number;
   blockedBy: number;
   finishTime: number;
   finishSpeed: number;
@@ -72,6 +74,8 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
   const rng = new Rng(setup.seed).fork(2);
   // 騎手の流し方は別の乱数で決める（ほかの乱数の並びを変えないように）
   const easeRng = new Rng(setup.seed).fork(13);
+  // 走りたい進路も別の乱数で決める
+  const laneRng = new Rng(setup.seed).fork(17);
   const invBurnExp = 1 / (P.burnExponent - 1);
   const kickFade = P.kickFade[course.surface] * Math.pow(1600 / D, P.kickFadeDistanceExp);
   const dashScale = P.earlyDashSurface[course.surface] * Math.pow(1200 / D, P.earlyDashDistanceExp);
@@ -126,6 +130,10 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
       trafficTrouble: rng.chance(P.trafficTroubleChance),
       stuckUntil: -Infinity,
       targetX: 0.5 + i * 1.0,
+      homeX:
+        0.5 +
+        P.laneWidth *
+          (P.preferredLane[style] + laneRng.range(0, P.preferredJitter) + (P.preferredFrame * i) / Math.max(1, setup.entries.length - 1)),
       blockedBy: -1,
       finishTime: NaN,
       finishSpeed: NaN,
@@ -311,7 +319,7 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
         }
         if (r.blockedBy >= 0) {
           const front = runners[r.blockedBy];
-          vTarget = Math.min(vTarget, front.v + (nearest - 1.4) * 0.8);
+          vTarget = Math.min(vTarget, front.v + (nearest - P.followGap) * 0.8);
         }
       }
 
@@ -335,8 +343,8 @@ export function simulateRace(setup: RaceSetup, options: SimulateOptions = {}): R
             const out = r.x + P.laneWidth;
             if (out < 20 && laneClear(i, out, 2.5, 2.0)) r.targetX = out;
           }
-        } else if (r.blockedBy < 0 && r.x > 0.6) {
-          const inside = Math.max(0.5, r.x - P.laneWidth);
+        } else if (r.blockedBy < 0 && r.x > r.homeX + 0.1) {
+          const inside = Math.max(r.homeX, r.x - P.laneWidth);
           // 直線で仕掛けている馬は内に切り込まない
           if (!r.spurting && laneClear(i, inside, P.tuckAhead, P.tuckBehind)) r.targetX = inside;
         }

@@ -247,7 +247,7 @@ export class TrackView {
   private drawEventTags(t: number) {
     const ctx = this.ctx;
     const scale = this.view!.scale;
-    const radius = Math.min(15, Math.max(5, 1.2 * scale));
+    const radius = Math.min(14, Math.max(5, 1.0 * scale));
     ctx.font = `700 11px ${'"Zen Kaku Gothic New", system-ui, sans-serif'}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -429,7 +429,7 @@ export class TrackView {
     const ctx = this.ctx;
     const { entries } = this.result.setup;
     const scale = this.view!.scale;
-    const radius = Math.min(15, Math.max(5, 1.2 * scale));
+    const radius = Math.min(14, Math.max(5, 1.0 * scale));
     // 後ろの馬から描いて、前の馬が上に重なるようにする
     const order = runningOrder(this.samples).reverse();
 
