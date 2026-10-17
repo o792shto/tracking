@@ -80,6 +80,8 @@ export interface PastRun {
   race?: string;
   venue?: string;
   grade?: 'G1' | 'G2' | 'G3' | null;
+  /** レースの格（条件戦のクラス・オープン・重賞） */
+  raceClass?: 'newcomer' | 'maiden' | '1win' | '2win' | '3win' | 'open' | 'G3' | 'G2' | 'G1';
   year?: number;
   month?: number;
   day?: number;
@@ -107,6 +109,8 @@ export interface RaceSetup {
   entries: Entry[];
   /** 出馬表に出す近走の数の幅（最小, 最大）。省略時は4走 */
   pastRuns?: [number, number];
+  /** このレースの格（名簿の世界のレースのみ。前走の格との差で人気の付き方が変わる） */
+  raceClass?: 'newcomer' | 'maiden' | '1win' | '2win' | '3win' | 'open' | 'G3' | 'G2' | 'G1';
   /** 大レースの予想記事で本命・穴に挙がった馬（馬番）。記事に出た馬には票が集まる */
   press?: { favorite: number; darkHorse: number | null };
 }

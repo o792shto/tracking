@@ -45,6 +45,9 @@ const favBandG1 = new Map<string, Acc>();
 const byJockey = new Map<string, Acc>();
 /** G1（観戦レース）の騎乗数のランク別 */
 const g1Rides = new Map<string, number>();
+/** 前走3着以内の馬の、前走の格と今回の格の差（格下げ・同じ・昇級）ごと */
+const byStep = new Map<string, Acc>();
+const LEVEL: Record<string, number> = { newcomer: 0, maiden: 0, '1win': 1, '2win': 2, '3win': 3, open: 4, G3: 5, G2: 6, G1: 7 };
 /** 大レースの予想記事の本命・穴（観戦レース） */
 const pressAcc = { favorite: { n: 0, win: 0, ret: 0, pop: 0 }, dark: { n: 0, win: 0, ret: 0, pop: 0 } };
 const oddsBand = new Map<string, Acc>();
@@ -257,6 +260,11 @@ for (let k = 0; k < YEARS * WEEKS_PER_YEAR; k++) {
           a.win++;
           a.ret += odds;
         }
+      }
+      const prev = e.history?.[0];
+      if (prev && prev.rank <= 3 && prev.raceClass && setup.raceClass) {
+        const d = LEVEL[prev.raceClass] - LEVEL[setup.raceClass];
+        rows.push(bump(byStep, d > 0 ? '格下げ' : d === 0 ? '同じ格' : '昇級'));
       }
       const jr = e.jockey?.rank ?? '-';
       rows.push(bump(byJockey, jr), bump(byJockey, `${jr}:${pop <= 3 ? '1-3' : pop <= 6 ? '4-6' : '7+'}`));
@@ -545,6 +553,10 @@ const RANKS = ['S+', 'S', 'A', 'B', 'C'] as const;
   }
 }
 
+for (const k of ['格下げ', '同じ格', '昇級']) {
+  const a = byStep.get(k);
+  if (a) add(`前走3着以内・${k}の単勝回収率`, '100%未満', pct(a.winRet, a.n), 0, 99.99, '%', `${a.n}頭・勝率${f1(pct(a.win, a.n))}%`);
+}
 for (const [k, label] of [['favorite', '本命'], ['dark', '穴']] as const) {
   const a = pressAcc[k];
   if (a.n > 0) add(`G1の予想記事の${label}の単勝回収率`, '100%未満', pct(a.ret, a.n), 0, 99.99, '%', `${a.n}頭・平均${f1(a.pop / a.n)}番人気・勝率${f1(pct(a.win, a.n))}%`);

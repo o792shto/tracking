@@ -147,12 +147,27 @@ function comboTable(type: ComboType, p: number[], q: number[], r: number[]): { i
 /** ワイド・馬単・3連複・3連単（馬連は単勝などと一緒に作る） */
 const EXTRA_COMBOS = ['wide', 'exacta', 'trio', 'trifecta'] as const;
 
-/** 前走の着順による人気の上乗せ */
-function formBoost(profile: HorseProfile | undefined): number {
+/** 格の値（前走の好走をどれだけ重く見るかに使う） */
+const CLASS_LEVEL: Record<string, number> = { newcomer: 0, maiden: 0, '1win': 1, '2win': 2, '3win': 3, open: 4, G3: 5, G2: 6, G1: 7 };
+
+/**
+ * 前走の格と今回の格の差による倍率。前走が上の格なら大きく、下の格なら小さい。
+ * どちらかの格が分からないとき（名簿の外のレース）は1
+ */
+export function formClassFactor(prev: string | undefined, now: string | undefined): number {
+  const a = prev ? CLASS_LEVEL[prev] : undefined;
+  const b = now ? CLASS_LEVEL[now] : undefined;
+  if (a === undefined || b === undefined) return 1;
+  const F = BETTING.formClass;
+  return Math.min(F.max, Math.max(F.min, 1 + F.step * (a - b)));
+}
+
+/** 前走の着順による人気の上乗せ（前走の格と今回の格の差で大きさを変える） */
+function formBoost(profile: HorseProfile | undefined, raceClass: RaceSetup['raceClass']): number {
   const last = profile?.recent[0];
   if (!last) return 1;
   const bonus = last.rank === 1 ? 1 : last.rank === 2 ? 0.7 : last.rank === 3 ? 0.5 : last.rank <= 5 ? 0.2 : 0;
-  return 1 + BETTING.recentFormBias * bonus;
+  return 1 + BETTING.recentFormBias * bonus * formClassFactor(last.raceClass ?? last.grade ?? undefined, raceClass);
 }
 
 /**
@@ -183,7 +198,7 @@ export function buildMarket(setup: RaceSetup, profiles: HorseProfile[]): Market 
   // 前走の好走と、大レースの予想記事（本命・穴に挙がった馬は売れる）
   const boost = setup.entries.map(
     (e) =>
-      formBoost(profiles.find((x) => x.number === e.number)) *
+      formBoost(profiles.find((x) => x.number === e.number), setup.raceClass) *
       (setup.press?.favorite === e.number ? 1 + BETTING.press.favorite : 1) *
       (setup.press?.darkHorse === e.number ? 1 + BETTING.press.darkHorse : 1),
   );

@@ -634,6 +634,7 @@ export function historyOf(h: WorldHorse): PastRun[] {
     race: r.race,
     venue: r.venue,
     grade: r.grade,
+    raceClass: r.raceClass,
     year: r.year,
     month: r.month,
     day: r.day,
@@ -710,6 +711,7 @@ export function raceSetup(world: World, card: WeekCard, race: CardRace): RaceSet
       venue: day.venue,
     },
     entries,
+    raceClass: p.raceClass,
   };
   // G1 は週の初めに予想記事が出る（ニュース）。記事の本命・穴はオッズにも響く
   if (race.grade === 'G1' && race.visible && entries.length >= 5) {
