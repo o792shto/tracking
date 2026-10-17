@@ -140,6 +140,9 @@ input:focus-visible {
 .readout .value.small {
   font-size: 18px;
 }
+.nowrap {
+  white-space: nowrap;
+}
 .readout .value {
   font-family: var(--font-data);
   font-size: 22px;
@@ -820,6 +823,41 @@ h3 {
 }
 .entry-table .name-col {
   font-weight: 700;
+}
+.entry-table .jockey-cell {
+  white-space: nowrap;
+}
+/* 騎手の名前とランクの札 */
+.jockey-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.jk-rank {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 3px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  color: var(--muted);
+}
+.jk-splus {
+  border-color: var(--goal);
+  background: var(--goal);
+  color: var(--on-glow);
+}
+.jk-s {
+  border-color: var(--goal);
+  color: var(--goal);
+}
+.jk-a {
+  border-color: var(--glow);
+  color: var(--glow);
 }
 .entry-table .recent {
   font-family: var(--font-data);
@@ -1810,7 +1848,7 @@ button.danger {
     grid-template-areas:
       'frame pick name name odds'
       'frame pick style recent pop'
-      'frame pick comment comment comment';
+      'frame pick jockey comment comment';
     align-items: center;
     column-gap: 8px;
     row-gap: 2px;
@@ -1858,6 +1896,10 @@ button.danger {
   .entry-table .comment {
     grid-area: comment;
     min-width: 0;
+    font-size: 12px;
+  }
+  .entry-table .jockey-cell {
+    grid-area: jockey;
     font-size: 12px;
   }
   .entry-table .odds {

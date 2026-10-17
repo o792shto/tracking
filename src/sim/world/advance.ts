@@ -3,14 +3,16 @@ import { GRADED_RACES_2026, type Grade } from '../gradedRaces';
 import { Rng, hashSeed } from '../rng';
 import type { FinishRecord } from '../types';
 import { FIRST_YEAR, WEEKS_PER_YEAR, weekOf } from './calendar';
-import { WORLD, ageOf, aptitudeFit, currentStats, newHorse, rating } from './horses';
+import { WORLD, ageOf, aptitudeFit, currentStats, newHorse, publicStats, rating } from './horses';
+import { assignRides, initialJockeys, recordRide, rideAttract, type RideVenue } from './jockeys';
 import { ABROAD, abroadPower, overseasRanks } from './overseas';
 import { OFFSCREEN, OFFSCREEN_G1, SUMMER_RACES, offscreenEligible, offscreenRanks, type OffscreenRace } from './offscreen';
 import { syutoku } from './prize';
 import { BALANCE } from '../balance';
 import { quickFinish } from './quick';
+import { weekReports } from './reports';
 import { fillyAvoidsColts, planG1, raceSetup, ratingsOf, seasonProgress, weekCard, type CardRace, type WeekCard } from './schedule';
-import { RUNS_KEPT, type Award, type NewsItem, type Tier, type World, type WorldHorse } from './types';
+import { RUNS_KEPT, type Award, type JockeyRank, type NewsItem, type Tier, type World, type WorldHorse } from './types';
 
 export { PRIZE, PRIZE_SHARE, firstPrize } from './prize';
 import { PRIZE_SHARE, firstPrize } from './prize';
@@ -26,7 +28,7 @@ export const EVENTS = {
   /** 引退する年齢（その年の終わりに） */
   retireAge: 7,
   /** ニュースを残す数 */
-  newsKept: 200,
+  newsKept: 400,
   /** ゲーム開始の何年前から世界を動かしておくか */
   warmupYears: 6,
 };
@@ -72,6 +74,7 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
     const raceName = race.grade ? p.name : `${p.age === '2' ? '2歳' : p.age === '3' ? '3歳' : ''}${p.name}`;
     for (const f of finish) {
       const h = byId.get(race.horseIds[f.number - 1])!;
+      const jockeyId = race.jockeyIds[f.number - 1] || undefined;
       const prize = Math.round(firstPrize(p) * (PRIZE_SHARE[f.rank - 1] ?? 0));
       h.starts++;
       if (f.rank === 1) {
@@ -98,7 +101,9 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
         time: Math.round(f.time * 10) / 10,
         margin: f.rank === 1 ? (finish[1]?.marginLabel ?? '') : f.marginLabel,
         ...(popularity ? { popularity: popularity[f.number - 1] } : {}),
+        ...(jockeyId ? { jockeyId } : {}),
       });
+      rideResult(world, jockeyId, h, year, f.rank, p.name, race.grade);
       if (h.runs.length > RUNS_KEPT) h.runs.splice(0, h.runs.length - RUNS_KEPT);
       h.lastWeek = world.serial;
       addFatigue(h, race.grade ?? (p.raceClass === 'open' ? 'open' : 'condition'), p.distance, f.rank);
@@ -125,9 +130,18 @@ export function advanceWeek(world: World, options: AdvanceOptions = {}): World {
   for (const [k, { race, horseIds }] of card.offscreen.entries()) {
     if (horseIds.length < (race.locals ? 1 : 5)) continue;
     const horses = horseIds.map((id) => byId.get(id)!);
-    const ranks = offscreenRanks(race, horses, year, seasonProgress(week.index, WEEKS_PER_YEAR), rng.fork(9 + k * 31), card.top);
+    const jockeyIds = card.offscreen[k].jockeyIds;
+    const ranks = offscreenRanks(
+      race,
+      horses,
+      year,
+      seasonProgress(week.index, WEEKS_PER_YEAR),
+      rng.fork(9 + k * 31),
+      card.top,
+      jockeyBonus(world, jockeyIds),
+    );
     const runners = horses.length + (race.locals?.count ?? 0);
-    const top3 = recordOffscreen(world, race, horses, ranks, year, week.index, world.serial, runners);
+    const top3 = recordOffscreen(world, race, horses, ranks, year, week.index, world.serial, runners, jockeyIds);
     const label = race.gradeLabel ?? race.grade;
     news(
       world,
@@ -210,10 +224,13 @@ function recordOffscreen(
   lastWeek: number,
   /** 出走頭数（交流 G1 は地方の馬を含む） */
   runners = horses.length,
+  /** 騎手（horses の並び順） */
+  jockeyIds: readonly number[] = [],
 ) {
   const first = firstPrize({ raceClass: race.grade, name: race.name, age: race.age, fillies: race.fillies });
   horses.forEach((h, k) => {
     const rank = ranks[k];
+    const jockeyId = jockeyIds[k] || undefined;
     const prize = Math.round(first * (PRIZE_SHARE[rank - 1] ?? 0));
     h.starts++;
     if (rank === 1) {
@@ -240,9 +257,11 @@ function recordOffscreen(
       rank,
       time: 0,
       margin: '',
+      ...(jockeyId ? { jockeyId } : {}),
     });
     if (h.runs.length > RUNS_KEPT) h.runs.splice(0, h.runs.length - RUNS_KEPT);
     h.lastWeek = Math.max(h.lastWeek ?? lastWeek, lastWeek);
+    rideResult(world, jockeyId, h, year, rank, race.name, race.grade);
   });
   // 1〜3着。交流 G1 で地方の馬が入った着は、名簿にいないので id 0・「地方馬」とする
   const top3 = [1, 2, 3]
@@ -292,13 +311,15 @@ function news(world: World, kind: NewsItem['kind'], title: string, body: string,
   if (world.news.length > EVENTS.newsKept) world.news.splice(0, world.news.length - EVENTS.newsKept);
 }
 
-/** 週の初めの出来事：年の変わり目（表彰・引退）、夏明け（未勝利馬の引退・上がり馬）、2歳のデビュー */
+/** 週の初めの出来事：年の変わり目（表彰・引退）、夏明け（未勝利馬の引退・上がり馬）、2歳のデビュー、予想記事・ローテーションの記事 */
 export function enterWeek(world: World) {
   const { year, week } = weekOf(world.serial);
   const rng = new Rng(hashSeed(world.seed ^ Math.imul(world.serial + 77, 0x2545f491)));
   if (week.index === 0) yearEnd(world, year - 1, rng.fork(1));
   if (week.afterSummer) afterSummer(world, year, rng.fork(2));
   if (week.debut) addCohort(world, year, rng.fork(3));
+  // 予想記事・ローテーションの記事（準備期間は残らないので作らない）
+  if (world.serial >= 0) for (const r of weekReports(world)) news(world, r.kind, r.title, r.body, r.horseIds);
 }
 
 /** 新しい2歳を名簿に入れる */
@@ -378,11 +399,12 @@ function afterSummer(world: World, year: number, rng: Rng) {
     if (best >= 0) fields[best].push(h);
   }
   const results: { race: OffscreenRace; winner: WorldHorse }[] = [];
+  const summerJockeys = summerRides(world, fields, year, progress, rng.fork(41));
   for (const [i, race] of SUMMER_RACES.entries()) {
     const field = fields[i];
     if (field.length < 6) continue;
-    const ranks = offscreenRanks(race, field, year, progress, rng);
-    const top3 = recordOffscreen(world, race, field, ranks, year, Math.max(0, week.index - 1), world.serial - 1);
+    const ranks = offscreenRanks(race, field, year, progress, rng, 0, jockeyBonus(world, summerJockeys[i]));
+    const top3 = recordOffscreen(world, race, field, ranks, year, Math.max(0, week.index - 1), world.serial - 1, field.length, summerJockeys[i]);
     const winner = top3[0];
     results.push({ race, winner });
     // 勝ち馬は夏に力をつけていたことが多い（まだならここで成長。ファンにも知られる）
@@ -407,6 +429,63 @@ function afterSummer(world: World, year: number, rng: Rng) {
       results.map(({ race, winner }) => `${race.name}＝${winner.name}`).join('、'),
       results.map(({ winner }) => winner.id),
     );
+  }
+}
+
+/** 騎手の腕の上乗せ（画面外のレースの総合力の点） */
+function jockeyBonus(world: World, jockeyIds: readonly number[]): number[] {
+  const byId = new Map((world.jockeys ?? []).map((j) => [j.id, j]));
+  return jockeyIds.map((id) => {
+    const j = byId.get(id);
+    return j ? BALANCE.jockey.offscreenPoints[j.rank] : 0;
+  });
+}
+
+/** 夏の重賞の騎手（同じ日のレースは1つの日として分ける） */
+function summerRides(world: World, fields: WorldHorse[][], year: number, progress: number, rng: Rng): number[][] {
+  const out: number[][] = fields.map(() => []);
+  if (!world.jockeys) return out;
+  const dates = new Map<string, number[]>();
+  SUMMER_RACES.forEach((r, i) => {
+    if (fields[i].length < 6) return;
+    const key = `${r.month}-${r.day}`;
+    dates.set(key, [...(dates.get(key) ?? []), i]);
+  });
+  for (const idx of dates.values()) {
+    const venues: RideVenue[] = idx.map((i) => {
+      const race = SUMMER_RACES[i];
+      return {
+        importance: race.grade === 'G2' ? 2 : 1,
+        races: [
+          {
+            horseIds: fields[i].map((h) => h.id),
+            attract: rideAttract(
+              fields[i].map((h) => rating(publicStats(h, year, progress)) + 0.8 * aptitudeFit(h, race.surface, race.distance)),
+              rng,
+            ),
+            lastJockey: fields[i].map((h) => h.jockeyId),
+          },
+        ],
+      };
+    });
+    const res = assignRides(world.jockeys, SUMMER_RACES[idx[0]].month, venues, rng);
+    idx.forEach((i, k) => (out[i] = res[k][0]));
+  }
+  return out;
+}
+
+const RANK_WORD: Record<JockeyRank, string> = { 'S+': 'S+', S: 'S', A: 'A', B: 'B', C: 'C' };
+
+/** 騎乗の結果を騎手に残す（馬の前走の騎手も更新）。昇格したらニュースにする */
+function rideResult(world: World, jockeyId: number | undefined, h: WorldHorse, year: number, rank: number, raceName: string, grade: Grade | null) {
+  if (!jockeyId) return;
+  h.jockeyId = jockeyId;
+  const j = world.jockeys?.find((x) => x.id === jockeyId);
+  if (!j) return;
+  const up = recordRide(j, year, rank, { name: raceName, grade });
+  if (up) {
+    const why = grade === 'G1' ? `${raceName}を${h.name}で制し、` : `${raceName}を${h.name}で勝って重賞2勝目、`;
+    news(world, 'jockey', `${j.name}騎手が${RANK_WORD[up]}ランクに昇格`, `${why}${j.name}騎手が${RANK_WORD[up]}ランクに上がりました。これから大きいレースの騎乗が増えそうです。`, [h.id]);
   }
 }
 
@@ -515,9 +594,12 @@ export function createWorld(seed: number): World {
     news: [],
     graded: [],
     awards: [],
+    jockeys: initialJockeys(),
   };
   enterWeek(world);
   while (world.serial < 0) advanceWeek(world, { full: false });
+  // 騎手のランクと成績はゲーム開始の時点から（準備期間の昇格は残さない）
+  world.jockeys = initialJockeys();
   // 準備期間のニュースと、前の年より古い重賞の結果は残さない
   world.news = world.news.filter((n) => n.serial >= 0);
   world.graded = world.graded.filter((g) => g.year >= FIRST_YEAR - 1);

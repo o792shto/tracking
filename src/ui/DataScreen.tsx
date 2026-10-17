@@ -7,6 +7,7 @@ import {
   ageOf,
   formatPrize,
   formatTime,
+  rankValue,
   tierLabel,
   weekLabel,
   weekOf,
@@ -17,10 +18,12 @@ import {
 import { useGame, type DataTab } from '../store';
 import { GradeBadge } from './GameHeader';
 import { useWorldData } from './useRace';
+import { JockeyName } from './JockeyName';
 
 const TABS: { tab: DataTab; label: string }[] = [
   { tab: 'calendar', label: 'カレンダー' },
   { tab: 'ranking', label: 'ランキング' },
+  { tab: 'jockeys', label: '騎手' },
   { tab: 'graded', label: '重賞勝ち馬' },
   { tab: 'awards', label: '年度表彰' },
   { tab: 'news', label: 'ニュース' },
@@ -89,6 +92,7 @@ export function DataScreen() {
       </div>
       {tab === 'calendar' && <Calendar world={world} />}
       {tab === 'ranking' && <Ranking world={world} />}
+      {tab === 'jockeys' && <Jockeys world={world} />}
       {tab === 'graded' && <GradedWinners world={world} />}
       {tab === 'awards' && <Awards world={world} />}
       {tab === 'favorites' && <Favorites world={world} />}
@@ -232,6 +236,73 @@ function Ranking({ world }: { world: World }) {
                   <td>{tierLabel(h.tier)}</td>
                   <td className="small">{recordLine(h)}</td>
                   <td className="num">{key === 'g1' ? `${v}勝` : formatPrize(v)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** 騎手リーディング（その年の勝利数順）。ランクは今のランク */
+function Jockeys({ world }: { world: World }) {
+  const [year, setYear] = useState(currentYear(world));
+  const rows = (world.jockeys ?? [])
+    .map((j) => ({ j, y: j.byYear[year] ?? [0, 0, 0, 0], graded: j.graded.filter((g) => g.year === year) }))
+    // 名簿の騎手は騎乗がなくても出す（年の初め・短期免許の騎手）。架空の騎手は乗った年だけ
+    .filter((x) => x.y[0] > 0 || !x.j.fictional)
+    .sort((a, b) => b.y[1] - a.y[1] || b.y[2] - a.y[2] || rankValue(b.j.rank) - rankValue(a.j.rank) || a.j.id - b.j.id);
+  return (
+    <section>
+      <h1>
+        騎手リーディング <YearSelect world={world} year={year} onChange={setYear} from={FIRST_YEAR} />
+      </h1>
+      <p className="muted small">
+        ランクは S+ が最上位。B・C の騎手が G1 を勝つと1つ上がり、C の騎手は G2・G3 を合わせて2勝すると B に上がります。
+        ランクの高い騎手ほど馬の力を引き出し、人気も集めます。
+      </p>
+      {rows.length === 0 ? (
+        <p className="muted">まだ騎乗がありません。</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="num">順位</th>
+                <th>騎手</th>
+                <th className="num">勝利</th>
+                <th className="num">2着</th>
+                <th className="num">3着</th>
+                <th className="num">騎乗</th>
+                <th className="num">勝率</th>
+                <th>重賞勝ち</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ j, y, graded }, i) => (
+                <tr key={j.id}>
+                  <td className="num">{i + 1}</td>
+                  <td>
+                    <JockeyName jockey={j} />
+                  </td>
+                  <td className="num">{y[1]}</td>
+                  <td className="num">{y[2]}</td>
+                  <td className="num">{y[3]}</td>
+                  <td className="num">{y[0]}</td>
+                  <td className="num">{y[0] > 0 ? `${((y[1] / y[0]) * 100).toFixed(1)}%` : '—'}</td>
+                  <td className="small">
+                    {graded.length === 0
+                      ? '—'
+                      : graded.map((g, k) => (
+                          <span key={k}>
+                            {k > 0 && '、'}
+                            {g.name}
+                            {g.grade === 'G1' ? '（G1）' : ''}
+                          </span>
+                        ))}
+                  </td>
                 </tr>
               ))}
             </tbody>

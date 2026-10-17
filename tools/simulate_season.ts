@@ -19,6 +19,7 @@ import { advanceWeek, createWorld, raceKey } from '../src/sim/world/advance.ts';
 import { ageOf, currentStats, rating } from '../src/sim/world/horses.ts';
 import { SUMMER_RACES } from '../src/sim/world/offscreen.ts';
 import { syutoku } from '../src/sim/world/prize.ts';
+import { initialJockeys } from '../src/sim/world/jockeys.ts';
 import { raceSetup, weekCard } from '../src/sim/world/schedule.ts';
 import type { FinishRecord } from '../src/sim/types.ts';
 import type { Tier, WorldHorse } from '../src/sim/world/types.ts';
@@ -40,6 +41,12 @@ const acc = (): Acc => ({ n: 0, win: 0, top2: 0, place: 0, winRet: 0, placeRet: 
 const byPop = new Map<string, Acc>();
 const favBand = new Map<string, Acc>();
 const favBandG1 = new Map<string, Acc>();
+/** 騎手のランク別（観戦レース）。キーはランク、または「ランク:人気帯」 */
+const byJockey = new Map<string, Acc>();
+/** G1（観戦レース）の騎乗数のランク別 */
+const g1Rides = new Map<string, number>();
+/** 大レースの予想記事の本命・穴（観戦レース） */
+const pressAcc = { favorite: { n: 0, win: 0, ret: 0, pop: 0 }, dark: { n: 0, win: 0, ret: 0, pop: 0 } };
 const oddsBand = new Map<string, Acc>();
 const quinella: number[] = [];
 const trifecta: number[] = [];
@@ -87,7 +94,7 @@ const tierCounts: { year: number; counts: Record<Tier, number> }[] = [];
 type EliteYear = { all: number; g1: number; g23: number; open: number; abroad: number; races: string[] };
 const eliteRuns = new Map<string, EliteYear>();
 const eliteGroups = new Map<number, { g1Winners: Set<number>; top10: Set<number>; longTop10: Set<number> }>();
-const olderG1Fields = new Map<string, { races: number; n: number; g1w: number; top: number; longTop: number }>();
+const olderG1Fields = new Map<string, { races: number; n: number; g1w: number; top: number; longTop: number; g1Now: number }>();
 const runSig = (r: { year: number; month: number; day: number; race: string }) => `${r.year}-${r.month}-${r.day}-${r.race}`;
 const lastRunSig = new Map<number, string>();
 /** 夏の重賞ごとの出走馬の収得賞金（夏の前の値）の合計と頭数 */
@@ -161,8 +168,10 @@ for (let k = 0; k < YEARS * WEEKS_PER_YEAR; k++) {
     const g = eliteGroups.get(year);
     for (const r of card.races) {
       if (r.grade !== 'G1' || r.program.age === '2' || r.program.age === '3' || !g) continue;
-      const x = olderG1Fields.get(r.program.name) ?? { races: 0, n: 0, g1w: 0, top: 0, longTop: 0 };
+      const x = olderG1Fields.get(r.program.name) ?? { races: 0, n: 0, g1w: 0, top: 0, longTop: 0, g1Now: 0 };
       x.races++;
+      // 出走の時点の G1 馬（その年に勝った馬も含む）
+      x.g1Now += r.horseIds.filter((id) => world.horses.find((h) => h.id === id)!.graded.some((gw) => gw.grade === 'G1')).length;
       x.n += r.horseIds.length;
       x.g1w += r.horseIds.filter((id) => g.g1Winners.has(id)).length;
       x.top += r.horseIds.filter((id) => g.top10.has(id)).length;
@@ -239,6 +248,19 @@ for (let k = 0; k < YEARS * WEEKS_PER_YEAR; k++) {
         rows.push(bump(favBand, favBandKey(odds)));
         if (r.grade === 'G1') rows.push(bump(favBandG1, favBandKey(odds)));
       }
+      for (const [k, num] of [['favorite', setup.press?.favorite], ['dark', setup.press?.darkHorse]] as const) {
+        if (num !== e.number) continue;
+        const a = pressAcc[k];
+        a.n++;
+        a.pop += pop;
+        if (rank === 1) {
+          a.win++;
+          a.ret += odds;
+        }
+      }
+      const jr = e.jockey?.rank ?? '-';
+      rows.push(bump(byJockey, jr), bump(byJockey, `${jr}:${pop <= 3 ? '1-3' : pop <= 6 ? '4-6' : '7+'}`));
+      if (r.grade === 'G1') g1Rides.set(jr, (g1Rides.get(jr) ?? 0) + 1);
       const b = before.get(r.horseIds[i])!;
       if (b.interval !== null && b.interval >= 10) {
         rows.push(layoff);
@@ -459,7 +481,7 @@ const longRows = eliteRows((g) => g.longTop10);
 const top10Rows = eliteRows((g) => g.top10);
 const meanOf = (rows: EliteYear[], f: (s: EliteYear) => number) => (rows.length ? rows.reduce((a, s) => a + f(s), 0) / rows.length : 0);
 const jcArima = [...eliteRuns.values()].filter((s) => s.races.includes('ジャパンC') && s.races.includes('有馬記念')).length;
-const perRace = (name: string, f: (x: { races: number; n: number; g1w: number; top: number; longTop: number }) => number) => {
+const perRace = (name: string, f: (x: { races: number; n: number; g1w: number; top: number; longTop: number; g1Now: number }) => number) => {
   const x = olderG1Fields.get(name);
   return x && x.races ? f(x) / x.races : 0;
 };
@@ -467,6 +489,9 @@ add('同じ年にジャパンCと有馬記念の両方に出た馬', '1頭以上
 for (const name of ['ジャパンC', '有馬記念']) {
   add(`${name}の年初のG1馬（1レースあたり）`, '4頭以上', perRace(name, (x) => x.g1w), 4, Infinity, '頭');
   add(`${name}の距離が合う芝の能力上位10頭（1レースあたり）`, '2頭以上（ユーザーの指示で、距離の合う馬で測る）', perRace(name, (x) => x.longTop), 2, Infinity, '頭');
+}
+for (const name of ['天皇賞・春', '宝塚記念', '天皇賞・秋', 'ジャパンC', '有馬記念']) {
+  add(`${name}の出走時のG1馬（1レースあたり）`, '3頭以上（ユーザーの指示：3〜4頭は出てほしい）', perRace(name, (x) => x.g1Now), 3, Infinity, '頭');
 }
 add('年初のG1馬 出走のうちG1が半分以上の馬', '修正前71%より上', pct(g1wRows.filter((s) => s.all > 0 && (s.g1 + s.abroad) / s.all >= 0.5).length, g1wRows.length), 71.01, 100);
 add('年初のG1馬 オープン特別の出走（1年あたり）', 'ほぼ0', meanOf(g1wRows, (s) => s.open), 0, 0.1, '走');
@@ -500,6 +525,29 @@ for (const t of ['exacta', 'trifecta'] as const) {
       ok: within(ratio, 0.8, 1.25),
     });
   }
+}
+
+const RANKS = ['S+', 'S', 'A', 'B', 'C'] as const;
+{
+  const wr = RANKS.map((k) => {
+    const a = byJockey.get(k);
+    return a ? pct(a.win, a.n) : 0;
+  });
+  checks.push({
+    name: '騎手のランク別 勝率（S+・S・A・B・C）',
+    target: 'S+＞S＞A＞B・C（B と C は騎乗の少ない C のぶれが大きいので比べない）',
+    actual: wr.map((x) => `${f1(x)}%`).join(' / '),
+    ok: wr[0] > wr[1] && wr[1] > wr[2] && wr[2] > Math.max(wr[3], wr[4]),
+  });
+  for (const k of RANKS) {
+    const a = byJockey.get(k);
+    if (a) add(`騎手 ${k} の単勝回収率`, '100%未満', pct(a.winRet, a.n), 0, 99.99);
+  }
+}
+
+for (const [k, label] of [['favorite', '本命'], ['dark', '穴']] as const) {
+  const a = pressAcc[k];
+  if (a.n > 0) add(`G1の予想記事の${label}の単勝回収率`, '100%未満', pct(a.ret, a.n), 0, 99.99, '%', `${a.n}頭・平均${f1(a.pop / a.n)}番人気・勝率${f1(pct(a.win, a.n))}%`);
 }
 
 // ---------- Markdown ----------
@@ -628,6 +676,34 @@ L();
 L('### 休み明け初戦（実際の日付で10週以上あいた馬・観戦レース）');
 L();
 L(`- 出走 ${layoff.n}　勝率 ${f1(pct(layoff.win, layoff.n))}%　複勝率 ${f1(pct(layoff.place, layoff.n))}%　平均人気 ${f1(mean(layoffPops))}　単勝回収率 ${f1(pct(layoff.winRet, layoff.n))}%`);
+L();
+L('## 7. 騎手（観戦レース）');
+L();
+L('| ランク | 騎乗 | 勝率 | 複勝率 | 単勝回収率 | 1〜3番人気の単勝回収率 | 4〜6番人気 | 7番人気以下 | G1の騎乗 |');
+L('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
+for (const k of [...RANKS, '-']) {
+  const a = byJockey.get(k);
+  if (!a) continue;
+  const roiOf = (band: string) => {
+    const x = byJockey.get(`${k}:${band}`);
+    return x ? `${f1(pct(x.winRet, x.n))}%（${x.n}）` : '—';
+  };
+  L(`| ${k} | ${a.n} | ${f1(pct(a.win, a.n))}% | ${f1(pct(a.place, a.n))}% | ${f1(pct(a.winRet, a.n))}% | ${roiOf('1-3')} | ${roiOf('4-6')} | ${roiOf('7+')} | ${g1Rides.get(k) ?? 0} |`);
+}
+L();
+L('### 騎手の通算成績（全レース・上位20人）と最後のランク');
+L();
+L('| 騎手 | 最初 | 最後 | 騎乗 | 勝利 | 勝率 | 重賞 | G1 |');
+L('| --- | --- | --- | --- | --- | --- | --- | --- |');
+{
+  const first = new Map(initialJockeys().map((j) => [j.id, j.rank]));
+  for (const j of [...(world.jockeys ?? [])].sort((a, b) => b.wins - a.wins).slice(0, 20)) {
+    L(`| ${j.name} | ${first.get(j.id)} | ${j.rank} | ${j.starts} | ${j.wins} | ${f1(pct(j.wins, j.starts))}% | ${j.graded.length} | ${j.graded.filter((g) => g.grade === 'G1').length} |`);
+  }
+  const ups = (world.jockeys ?? []).filter((j) => first.get(j.id) !== j.rank);
+  L();
+  L(`- 昇格した騎手 ${ups.length}人：${ups.map((j) => `${j.name}（${first.get(j.id)}→${j.rank}）`).join('、') || 'なし'}`);
+}
 L();
 L('## 6. クラス別の頭数（各年の初め）と昇級直後の成績');
 L();

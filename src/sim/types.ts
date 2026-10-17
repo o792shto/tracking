@@ -95,8 +95,10 @@ export interface Entry {
   history?: PastRun[];
   /** 名簿の馬の実績（人気の付き方に使う） */
   record?: { g1Wins: number; gradedWins: number; wins: number; starts: number; earnings: number; fatigue?: number };
-  /** 当日の調子（0.985〜1.015 程度、プレイヤーには非公開） */
+  /** 当日の調子（0.985〜1.015 程度、プレイヤーには非公開）。騎手の腕の分も含む */
   form: number;
+  /** 騎手（名簿の世界のレースのみ） */
+  jockey?: { id: number; name: string; rank: 'S+' | 'S' | 'A' | 'B' | 'C' };
 }
 
 export interface RaceSetup {
@@ -105,6 +107,8 @@ export interface RaceSetup {
   entries: Entry[];
   /** 出馬表に出す近走の数の幅（最小, 最大）。省略時は4走 */
   pastRuns?: [number, number];
+  /** 大レースの予想記事で本命・穴に挙がった馬（馬番）。記事に出た馬には票が集まる */
+  press?: { favorite: number; darkHorse: number | null };
 }
 
 export type RaceEventKind = 'slowStart' | 'keen' | 'blocked';

@@ -9,7 +9,7 @@ export function placeCount(runners: number): number {
 
 /**
  * 実績による人気の上乗せ（見た目の強さと同じ m/s 換算）。ファンは能力だけでなく、
- * G1・重賞の勝ち鞍や近走の重賞での好走を見て買う
+ * G1・重賞の勝ち鞍や近走の重賞での好走、騎手のランクを見て買う
  */
 export function reputation(entry: RaceSetup['entries'][number]): number {
   const r = entry.record;
@@ -23,6 +23,7 @@ export function reputation(entry: RaceSetup['entries'][number]): number {
   for (const run of entry.history?.slice(0, 3) ?? []) {
     if (run.grade && run.rank <= 3) rep += BETTING.reputation.gradedPlace;
   }
+  if (entry.jockey) rep += BETTING.jockeyPopularity[entry.jockey.rank];
   return rep;
 }
 
@@ -179,7 +180,13 @@ export function buildMarket(setup: RaceSetup, profiles: HorseProfile[]): Market 
   const k = placeCount(n);
   // 複勝は Harville の公式のまま（2・3着の補正を入れると、全馬の複勝の回収率が控除率より大きく下がった）
   const pPlace = topKProbabilities(p, k);
-  const boost = setup.entries.map((e) => formBoost(profiles.find((x) => x.number === e.number)));
+  // 前走の好走と、大レースの予想記事（本命・穴に挙がった馬は売れる）
+  const boost = setup.entries.map(
+    (e) =>
+      formBoost(profiles.find((x) => x.number === e.number)) *
+      (setup.press?.favorite === e.number ? 1 + BETTING.press.favorite : 1) *
+      (setup.press?.darkHorse === e.number ? 1 + BETTING.press.darkHorse : 1),
+  );
   const steps = BETTING.boardSteps;
   const alpha = BETTING.favoriteBias;
   /** 複勝・組み合わせの券種の票の偏り（単勝より弱い） */

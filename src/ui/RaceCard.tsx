@@ -24,6 +24,7 @@ import { GradeBadge, formatCoins } from './GameHeader';
 import { runQuietly, useRaceCard } from './useRace';
 import { unlockAudio } from './sound';
 import { groupBets } from './betGroups';
+import { JockeyName } from './JockeyName';
 
 /** 発走前のオッズ表示が切り替わる間隔（ms） */
 const BOARD_INTERVAL = 3500;
@@ -264,6 +265,7 @@ export function RaceCard() {
                 <th>馬番</th>
                 <th className="name-col">馬名</th>
                 <th>性齢</th>
+                <th>騎手</th>
                 <th>脚質</th>
                 <th>近走（新しい順）</th>
                 <th>短評</th>
@@ -324,6 +326,7 @@ export function RaceCard() {
                       {e.horse.sex ? SEX_LABEL[e.horse.sex] : ''}
                       {e.horse.age ?? ''}
                     </td>
+                    <td className="jockey-cell">{e.jockey && <JockeyName jockey={e.jockey} />}</td>
                     <td className="style-cell">{STYLE_LABEL[e.horse.style]}</td>
                     <td className="recent-cell">
                       <span className="recent">

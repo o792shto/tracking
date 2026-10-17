@@ -42,7 +42,7 @@ export function MeetingTop() {
     }
     day.races.push({ race, index });
   });
-  const news = world ? world.news.filter((n) => n.serial >= world.serial - 1).slice(-4).reverse() : [];
+  const news = world ? world.news.filter((n) => n.serial >= world.serial - 1).slice(-6).reverse() : [];
 
   return (
     <main className="screen meeting-top">

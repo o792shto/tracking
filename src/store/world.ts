@@ -1,6 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import { useStore } from 'zustand';
-import { advanceWeek, createWorld, type World } from '../sim';
+import { advanceWeek, createWorld, ensureJockeys, type World } from '../sim';
 import { removeKey } from './storage';
 
 /** 名簿の世界の保存先（ゲームの進み具合とは別。大きいので圧縮して保存する） */
@@ -48,7 +48,7 @@ export async function decodeWorld(raw: string): Promise<World | null> {
       ? new TextDecoder().decode(await pipe(base64ToBytes(raw.slice(3)), new DecompressionStream('gzip')))
       : raw;
     const world = JSON.parse(json) as World;
-    return world && world.version === 1 && Array.isArray(world.horses) ? world : null;
+    return world && world.version === 1 && Array.isArray(world.horses) ? ensureJockeys(world) : null;
   } catch {
     return null;
   }

@@ -9,7 +9,7 @@ export const STORAGE_KEY = 'keiba-tracking/save-v1';
  * 保存データの形式の版。番組（週ごとのレース）が変わったら上げる。
  * 古い版のデータは、コイン・成績は引き継ぎ、その週の進み具合（結果・未精算の馬券）はやり直す
  */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export type Screen = 'top' | 'card' | 'watch' | 'result' | 'record' | 'data' | 'review';
 /** 出馬表の印 */
@@ -19,7 +19,7 @@ export type Mark = (typeof MARKS)[number];
 const UNIQUE_MARKS: readonly Mark[] = ['◎', '○', '▲'];
 
 /** データ画面のタブ */
-export type DataTab = 'calendar' | 'ranking' | 'graded' | 'awards' | 'news' | 'favorites';
+export type DataTab = 'calendar' | 'ranking' | 'jockeys' | 'graded' | 'awards' | 'news' | 'favorites';
 
 export interface Ticket {
   bet: Bet;
@@ -162,13 +162,14 @@ function isSaveData(x: unknown): x is SaveData {
 /**
  * 古い版の保存データは、レースが今の番組と合わないので週の初めからやり直す（買った馬券は返金）。
  * 開催日ごとの番組だった版（6以前）は、コインと成績だけ引き継いでゲーム開始の週から。
- * 1日12Rだった版（7）は、週・お気に入り・年ごとの成績・入金も引き継ぎ、その週の進み具合だけやり直す
+ * 1日12Rだった版（7）と騎手を入れる前の版（8）は、週・お気に入り・年ごとの成績・入金も引き継ぎ、その週の進み具合だけやり直す
+ * （騎手が入るとその週のオッズが変わるため）
  */
 export function migrate(saved: SaveData): SaveData {
   const data = { ...initialData(), ...saved };
   if (saved.version === SAVE_VERSION) return data;
   const history = (data.history ?? []).map((r) => ({ ...r, serial: r.serial ?? 0 }));
-  if (saved.version === 7) {
+  if (saved.version === 7 || saved.version === 8) {
     return {
       ...data,
       version: SAVE_VERSION,

@@ -121,10 +121,23 @@ export function offscreenEligible(h: WorldHorse, race: OffscreenRace, year: numb
  * 着順（馬の並び順で返す）。総合力＋向き不向き＋ばらつき。
  * 交流 G1 は地方の馬（top はその週の日本のトップの水準）も一緒に並べるので、着順は出走頭数（名簿の馬＋地方の馬）の中での順位
  */
-export function offscreenRanks(race: OffscreenRace, horses: WorldHorse[], year: number, progress: number, rng: Rng, top = 0): number[] {
+export function offscreenRanks(
+  race: OffscreenRace,
+  horses: WorldHorse[],
+  year: number,
+  progress: number,
+  rng: Rng,
+  top = 0,
+  /** 馬ごとの上乗せ（騎手の腕、点） */
+  bonus: readonly number[] = [],
+): number[] {
   const perf = horses.map((h, i) => ({
     i,
-    v: rating(currentStats(h, year, progress)) + 0.8 * aptitudeFit(h, race.surface, race.distance) + rng.normal(0, OFFSCREEN.noise),
+    v:
+      rating(currentStats(h, year, progress)) +
+      0.8 * aptitudeFit(h, race.surface, race.distance) +
+      (bonus[i] ?? 0) +
+      rng.normal(0, OFFSCREEN.noise),
   }));
   if (race.locals) {
     for (let k = 0; k < race.locals.count; k++) perf.push({ i: -1, v: rng.normal(top + race.locals.level, OFFSCREEN.noise + 1) });

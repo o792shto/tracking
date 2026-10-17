@@ -21,7 +21,7 @@
 - シミュレーション（`src/sim/`）は描画やReactに依存しない純粋なTypeScriptにする。DOM・React・Zustand を import しない
 - 乱数はすべてシード付き乱数（`src/sim/rng.ts`）を経由する。`Math.random()` は使わない
 - 描画側（`src/render/`）は sim の記録を再生するだけで、レース結果を変えない
-- 実在の馬名・騎手名・団体のロゴやデザインは使わない。競馬場名（東京・中山・京都・阪神）と重賞名は実在のものを使う（仕様変更済み）
+- 実在の馬名・団体のロゴやデザインは使わない。競馬場名（東京・中山・京都・阪神）・重賞名・騎手名（ユーザー指定の名簿、`src/sim/world/jockeys.ts`）は実在のものを使う（仕様変更済み）。名簿の騎手が足りない日を埋める騎手は架空
 - 変更後は `npm run test` と `npm run build` が通ることを確認する
 - localStorage へのアクセスは必ず try/catch で保護する
 - 配色は `src/ui/global.css` の変数（ダークと `[data-theme='light']`）とコース図の `src/render/colors.ts`（`setTrackTheme`）。色を足すときは両方のモードで決める
@@ -40,7 +40,7 @@
 
 - 年間の重賞98レースは `src/sim/gradedRaces.ts`（元資料は `docs/reference/graded-races-2026.md`）。重賞はすべて本来の格・名前・距離で行う（オープンへの置き換えはしない）。目黒記念はダービーデーの12R（その日だけ12Rがある）
 - 1年42週の暦（土日・月曜の祝日をひとまとめ、夏は開催なし）は `src/sim/world/calendar.ts`。1日11Rの番組テンプレートは `src/sim/program.ts`
-- 名簿の世界は `src/sim/world/`：馬（`horses.ts`）、週の出走表（`schedule.ts`）、週を進める・故障・引退・世代交代・夏のニュース・表彰（`advance.ts`）、観戦しないレースの簡易な結果（`quick.ts`、`quick.test.ts` でシミュレーションに合わせる）、実況の物語（`story.ts`）、海外遠征（`overseas.ts`）、画面に出ないレース（夏の重賞・中京G1・交流G1、`offscreen.ts`）。G1を目標にする馬の見立ては `schedule.ts` の `planG1`。賞金は `advance.ts` の `firstPrize`（ユーザー指定の額）
+- 名簿の世界は `src/sim/world/`：騎手（`jockeys.ts`。ランク S+〜C、昇格、割り当て）、週の初めの記事（`reports.ts`・`press.ts`。大レースの本命・穴はオッズにも響く）、馬（`horses.ts`）、週の出走表（`schedule.ts`）、週を進める・故障・引退・世代交代・夏のニュース・表彰（`advance.ts`）、観戦しないレースの簡易な結果（`quick.ts`、`quick.test.ts` でシミュレーションに合わせる）、実況の物語（`story.ts`）、海外遠征（`overseas.ts`）、画面に出ないレース（夏の重賞・中京G1・交流G1、`offscreen.ts`）。G1を目標にする馬の見立ては `schedule.ts` の `planG1`。賞金は `advance.ts` の `firstPrize`（ユーザー指定の額）
 - 1日は11Rまで（9R 3勝クラス・10R オープン特別・11R 重賞。ダービーデーだけ12Rの目黒記念）。プレイヤーが観戦するのは各競馬場の10R・11R（とダービーデーの12R）だけ。同じ週の開催日は1つの画面（`src/sim/meeting.ts` の `weekMeeting`）
 - 名簿は大きいので `src/store/world.ts` で圧縮して別のキーに保存する。ゲームの進み具合（`src/store/game.ts`）とは週（serial）でそろえる
 - 荒れ方の目安は `src/sim/world/world.test.ts`（観戦レースで見た目の強さが一番の馬の勝率が実際の1番人気の約32%に近いか）。見た目の強さの重みは `src/sim/rating.ts`

@@ -6,3 +6,4 @@ export { advanceWeek, createWorld, raceKey, raceFinish, tierLabel, formatPrize, 
 export { storiesFor, storyOf, winStory, crownPreview, TRIPLE_CROWN, FILLIES_CROWN, type HorseStory } from './story';
 export { OFFSCREEN_G1, SUMMER_RACES, type OffscreenRace } from './offscreen';
 export { syutoku } from './prize';
+export { initialJockeys, ensureJockeys, jockeyAvailable } from './jockeys';

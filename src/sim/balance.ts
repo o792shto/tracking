@@ -6,8 +6,28 @@
  * オッズの票の作り方は betting/params.ts にある。ここにはリアリティ改善で足した「つまみ」を集める。
  */
 import type { Grade } from './gradedRaces';
+import type { JockeyRank } from './world/types';
 
 export const BALANCE = {
+  /**
+   * 騎手（ユーザーの指示）。skill は当日の調子（form）への上乗せ（巡航速度の割合）。S+ で約0.25%（1600m で0.2秒ほど）。
+   * 同じ馬なら S+ の騎手で勝率がおよそ1.5倍になる大きさ。offscreenPoints は画面外のレース（総合力の点）での同じ上乗せ
+   */
+  jockey: {
+    skill: { 'S+': 0.0025, S: 0.0019, A: 0.0013, B: 0.0006, C: 0 } as Record<JockeyRank, number>,
+    offscreenPoints: { 'S+': 2.5, S: 1.9, A: 1.3, B: 0.6, C: 0 } as Record<JockeyRank, number>,
+    /** 前走と同じ騎手が乗り続ける確率（騎手のランクの値 × rankKeep を足す。S+ = 4、C = 0） */
+    keep: 0.65,
+    rankKeep: 0.08,
+    /** 騎手を選ぶときのばらつき（ランクの値） */
+    pickNoise: 0.8,
+    /** 馬の見た目の強さ（総合力の点）を並べるときのばらつき */
+    horseNoise: 2,
+    /** その日いちばん大きいレースのある競馬場へ行く確率（ランクごと。2場以上あるとき） */
+    bigVenue: { 'S+': 0.85, S: 0.75, A: 0.6, B: 0.5, C: 0.45 } as Record<JockeyRank, number>,
+    /** C の騎手が B に上がる G2・G3 の勝利数 */
+    minorWinsToB: 2,
+  },
   /** 出走間隔（週）。最短は「前走から何週後から出られるか」（中N週 = N+1 週後） */
   rotation: {
     /** G1 の後：最短中3週 */

@@ -33,6 +33,8 @@ export interface RunRecord {
   margin: string;
   /** 単勝人気（観戦したレースのみ） */
   popularity?: number;
+  /** 騎手（Jockey.id）。騎手を入れる前の記録にはない */
+  jockeyId?: number;
 }
 
 export interface GradedWin {
@@ -85,9 +87,36 @@ export interface WorldHorse {
   /** 休養明けの通算の週（怪我など） */
   restUntil: number | null;
   retired: { serial: number; reason: RetireReason } | null;
+  /** 前走の騎手（Jockey.id）。乗り替わりの判断に使う */
+  jockeyId?: number;
 }
 
-export type NewsKind = 'summer' | 'injury' | 'retire' | 'debut' | 'award' | 'record' | 'abroad' | 'offscreen';
+/** 騎手のランク（S+ が最上位） */
+export type JockeyRank = 'S+' | 'S' | 'A' | 'B' | 'C';
+export const JOCKEY_RANKS: readonly JockeyRank[] = ['S+', 'S', 'A', 'B', 'C'];
+/** ランクの値（S+ = 4 〜 C = 0） */
+export const rankValue = (r: JockeyRank) => 4 - JOCKEY_RANKS.indexOf(r);
+
+export interface Jockey {
+  id: number;
+  name: string;
+  rank: JockeyRank;
+  /** 短期免許：この月の範囲（両端を含む）だけ日本で乗る */
+  months?: [number, number];
+  /** 名簿の騎手が足りない日を埋める架空の騎手 */
+  fictional?: boolean;
+  starts: number;
+  wins: number;
+  seconds: number;
+  thirds: number;
+  /** 年ごとの [騎乗数, 勝利数, 2着, 3着] */
+  byYear: Record<number, [number, number, number, number]>;
+  graded: GradedWin[];
+  /** C ランクのあいだに勝った G2・G3 の数（B への昇格に使う） */
+  minorWins: number;
+}
+
+export type NewsKind = 'summer' | 'injury' | 'retire' | 'debut' | 'award' | 'record' | 'abroad' | 'offscreen' | 'jockey' | 'preview' | 'rotation';
 
 export interface NewsItem {
   /** 通算の週 */
@@ -131,6 +160,8 @@ export interface World {
   news: NewsItem[];
   graded: GradedResult[];
   awards: Award[];
+  /** 騎手（騎手を入れる前の保存データにはない。読み込むときに作る） */
+  jockeys?: Jockey[];
 }
 
 /** 直近の成績を残す数 */

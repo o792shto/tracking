@@ -24,6 +24,7 @@ export function HorseModal() {
   const h = world.horses.find((x) => x.id === id);
   const year = weekOf(world.serial).year;
   const awards = world.awards.filter((a) => a.horseId === id);
+  const jockeyName = new Map((world.jockeys ?? []).map((j) => [j.id, j.name]));
   const resting = h && !h.retired && h.restUntil !== null && h.restUntil > world.serial;
 
   return (
@@ -95,6 +96,7 @@ export function HorseModal() {
                         <th>レース</th>
                         <th>距離</th>
                         <th className="num">頭数</th>
+                        <th>騎手</th>
                         <th className="num">人気</th>
                         <th className="num">着順</th>
                         <th className="num">タイム</th>
@@ -118,6 +120,7 @@ export function HorseModal() {
                             {r.distance}
                           </td>
                           <td className="num">{r.runners}</td>
+                          <td className="small nowrap">{(r.jockeyId && jockeyName.get(r.jockeyId)) ?? '—'}</td>
                           <td className="num">{r.popularity ?? '—'}</td>
                           <td className="num rank">{r.rank}</td>
                           <td className="num">{r.time > 0 ? formatTime(r.time) : '—'}</td>

@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import { advanceWeek, createWorld } from './advance';
 import { WEEKS_PER_YEAR, weekOf } from './calendar';
 import { ageOf, gradedPlaced } from './horses';
-import { raceSetup, weekCard, type WeekCard } from './schedule';
+import { ENTRY, raceSetup, weekCard, type WeekCard } from './schedule';
 import { simulateRace } from '../engine';
 import { apparentStrength } from '../rating';
 import type { World } from './types';
@@ -87,13 +87,15 @@ describe('世界', () => {
     expect(newcomers).toBeGreaterThan(5);
   }, 60_000);
 
-  test('使い詰めにしない：オープン馬は年7走まで、重賞の後は中2週以上（G1 の後は中3週以上）', () => {
+  test('使い詰めにしない：オープン馬は年7走まで（大レースを除く）、重賞の後は中2週以上（G1 の後は中3週以上）', () => {
     const year = weekOf(before.serial).year;
     // 年の初めからオープンだった馬
     const openAtStart = new Set(before.horses.filter((x) => !x.retired && x.tier === 'open').map((x) => x.id));
     for (const h of world.horses.filter((x) => openAtStart.has(x.id))) {
       const runs = h.runs.filter((r) => r.year === year);
-      expect(runs.length, h.name).toBeLessThanOrEqual(7);
+      // 大レース（天皇賞・宝塚記念・ジャパンC・有馬記念）は G1 馬なら上限を超えて出る
+      expect(runs.filter((r) => !ENTRY.grandG1.includes(r.race)).length, h.name).toBeLessThanOrEqual(7);
+      expect(runs.length, h.name).toBeLessThanOrEqual(9);
       for (let i = 1; i < runs.length; i++) {
         // 実際の日付で数える（夏の重賞は夏休みの間）。土日・月曜のずれがあるので半週の余裕
         const day = (r: (typeof runs)[number]) => Date.UTC(r.year, r.month - 1, r.day) / 86_400_000;

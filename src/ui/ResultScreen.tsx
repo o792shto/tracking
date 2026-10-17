@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BET_TYPE_LABEL, BETTING } from '../betting';
 import { formatTime } from '../sim';
 import { frameColor } from '../render';
+import { JockeyName } from './JockeyName';
 import { useGame } from '../store';
 import { GradeBadge, formatCoins } from './GameHeader';
 import { sfx } from './sound';
@@ -120,6 +121,7 @@ export function ResultScreen() {
                   <th className="num">着</th>
                   <th>馬番</th>
                   <th className="name-col">馬名</th>
+                  <th>騎手</th>
                   <th className="num">タイム</th>
                   <th>着差</th>
                   <th className="num">上がり3F</th>
@@ -142,6 +144,7 @@ export function ResultScreen() {
                         {marks?.[e.number] && <span className="mark-tag">{marks[e.number]}</span>}
                         {e.horse.name}
                       </td>
+                      <td className="small nowrap">{e.jockey ? <JockeyName jockey={e.jockey} /> : '—'}</td>
                       <td className="num">{formatTime(f.time)}</td>
                       <td>{f.marginLabel}</td>
                       <td className="num">{f.last3f.toFixed(1)}</td>
