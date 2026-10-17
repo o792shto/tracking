@@ -4,7 +4,8 @@ import { rankValue, type Jockey, type JockeyRank, type World } from './types';
 
 /**
  * 騎手の名簿（ユーザー指定。実在の騎手名を使う）。短期免許の騎手は来日する月だけ乗る。
- * 短期免許の時期は実際の免許期間を確かめていない目安（レーンは春、モレイラは秋のG1シーズン）
+ * 短期免許の時期は実際の免許期間を確かめていない目安（レーンは春、モレイラは秋のG1シーズン、キングは冬）。
+ * 新しく足す騎手は、ランクの節の終わりに足す（id は並び順。保存データの騎手とは名前で照らし合わせる）
  */
 const ROSTER: readonly (readonly [string, JockeyRank, [number, number]?])[] = [
   ['C.ルメール', 'S+'],
@@ -14,6 +15,7 @@ const ROSTER: readonly (readonly [string, JockeyRank, [number, number]?])[] = [
   ['松山弘平', 'S'],
   ['川田将雅', 'S'],
   ['武豊', 'S'],
+  ['R.キング', 'S', [1, 3]],
   ['坂井瑠星', 'A'],
   ['横山武史', 'A'],
   ['西村淳也', 'A'],
@@ -42,6 +44,7 @@ const ROSTER: readonly (readonly [string, JockeyRank, [number, number]?])[] = [
   ['岩田康誠', 'B'],
   ['池添謙一', 'B'],
   ['古川吉洋', 'B'],
+  ['菅原明良', 'B'],
   ['今村聖奈', 'C'],
   ['大野拓弥', 'C'],
   ['田口貫太', 'C'],
@@ -51,44 +54,29 @@ const ROSTER: readonly (readonly [string, JockeyRank, [number, number]?])[] = [
   ['酒井学', 'C'],
   ['丸山元気', 'C'],
   ['M.デムーロ', 'C'],
+  ['横山琉人', 'C'],
+  ['吉田隼人', 'C'],
+  ['小沢大仁', 'C'],
+  ['木幡巧也', 'C'],
+  ['石川裕紀人', 'C'],
+  ['富田暁', 'C'],
+  ['小崎綾也', 'C'],
+  ['杉原誠人', 'C'],
+  ['石橋脩', 'C'],
 ];
 
-/**
- * 名簿の騎手だけでは、2〜3場の開催で1レース18頭ぶんの騎手が足りない日がある。その日を埋める架空の騎手（C）。
- * 名前は架空（実在の騎手と重ならないように選んだつもりだが、すべては確かめていない）
- */
-const FILLERS: readonly string[] = [
-  '朝霧隼人',
-  '久我蒼真',
-  '柚木颯太',
-  '真壁涼介',
-  '桐生迅',
-  '篠宮航平',
-  '葛城悠真',
-  '鳴海大翔',
-  '氷室拓真',
-  '宗像陸',
-  '雨宮晴斗',
-  '早瀬昂',
-  '御影瑛太',
-  '神楽坂奏',
-  '東雲匠',
-  '白鷺海斗',
-  '天野彗',
-  '瀬戸口翼',
-  '霧島蓮',
-  '如月慧',
-  '春日部遼',
-  '秋津律',
-  '日向野光',
-  '藤代湊',
-];
 
 export function initialJockeys(): Jockey[] {
-  const base = (id: number, name: string, rank: JockeyRank): Jockey => ({
+
+  return ROSTER.map(([name, rank, months], i) => newJockey(i + 1, name, rank, months));
+}
+
+function newJockey(id: number, name: string, rank: JockeyRank, months?: [number, number]): Jockey {
+  return {
     id,
     name,
     rank,
+    ...(months ? { months } : {}),
     starts: 0,
     wins: 0,
     seconds: 0,
@@ -96,15 +84,26 @@ export function initialJockeys(): Jockey[] {
     byYear: {},
     graded: [],
     minorWins: 0,
-  });
-  const out: Jockey[] = ROSTER.map(([name, rank, months], i) => ({ ...base(i + 1, name, rank), ...(months ? { months } : {}) }));
-  FILLERS.forEach((name, i) => out.push({ ...base(ROSTER.length + i + 1, name, 'C'), fictional: true }));
-  return out;
+  };
 }
 
-/** 古い保存データ（騎手がいない世界）に騎手を足す */
+/**
+ * 保存データの騎手を今の名簿にそろえる。騎手がいない世界には名簿を入れる。
+ * 以前の架空の騎手は外し、名簿に増えた騎手は新しい id で足す（成績・昇格したランクは名前で引き継ぐ）
+ */
 export function ensureJockeys(world: World): World {
-  if (!world.jockeys) world.jockeys = initialJockeys();
+  if (!world.jockeys) {
+    world.jockeys = initialJockeys();
+    return world;
+  }
+  const kept = world.jockeys.filter((j) => !j.fictional);
+  let next = Math.max(0, ...world.jockeys.map((j) => j.id)) + 1;
+  for (const [name, rank, months] of ROSTER) {
+    const j = kept.find((x) => x.name === name);
+    if (!j) kept.push(newJockey(next++, name, rank, months));
+    else if (months) j.months = months;
+  }
+  world.jockeys = kept;
   return world;
 }
 
@@ -136,9 +135,7 @@ export interface RideVenue {
  */
 export function assignRides(jockeys: readonly Jockey[], month: number, venues: RideVenue[], rng: Rng): number[][][] {
   const J = BALANCE.jockey;
-  const pool = jockeys.filter((j) => jockeyAvailable(j, month));
-  const real = pool.filter((j) => !j.fictional);
-  const fillers = pool.filter((j) => j.fictional);
+  const real = jockeys.filter((j) => jockeyAvailable(j, month) && !j.fictional);
   const need = venues.map((v) => Math.max(0, ...v.races.map((r) => r.horseIds.length)));
   const at: Jockey[][] = venues.map(() => []);
   if (venues.length === 1) at[0].push(...real);
@@ -156,11 +153,16 @@ export function assignRides(jockeys: readonly Jockey[], month: number, venues: R
       }
     }
   }
-  // 足りない競馬場を架空の騎手で埋める
-  let f = 0;
-  venues.forEach((_, i) => {
-    while (at[i].length < need[i] && f < fillers.length) at[i].push(fillers[f++]);
-  });
+  // 騎手が足りない競馬場へ、余っている競馬場からランクの低い騎手を回す（1日は最大2場なので足りる）
+  for (let i = 0; i < venues.length; i++) {
+    while (at[i].length < need[i]) {
+      const from = at.findIndex((xs, k) => k !== i && xs.length > need[k]);
+      if (from < 0) break;
+      const xs = at[from];
+      const low = xs.reduce((b, j, k) => (rankValue(j.rank) < rankValue(xs[b].rank) ? k : b), xs.length - 1);
+      at[i].push(...xs.splice(low, 1));
+    }
+  }
   return venues.map((v, i) =>
     v.races.map((race) => {
       const free = new Set(at[i]);
@@ -178,7 +180,7 @@ export function assignRides(jockeys: readonly Jockey[], month: number, venues: R
         let best: Jockey | null = null;
         let bestScore = -Infinity;
         for (const j of free) {
-          const s = rankValue(j.rank) - (j.fictional ? 0.3 : 0) + rng.normal(0, J.pickNoise);
+          const s = rankValue(j.rank) + rng.normal(0, J.pickNoise);
           if (s > bestScore) {
             bestScore = s;
             best = j;

@@ -12,6 +12,7 @@
 - `npm run sim:probe` — プレイヤーに見える情報だけで買い方を決めて回収率を出す（攻略の穴の検証。`-- --seed 99` など）
 - `npm run sim:elite` — 一流馬（G1馬・能力上位10頭）のローテーションと古馬G1の顔ぶれを数える
 - `npm run sim:sharp` — 市場の作り方を知っているプレイヤーを想定した攻略の検証（`WINONLY=1` で単勝・複勝だけ）
+- `npm run sim:odds` — 1レースのオッズの決め方を馬ごとに分解して表示する（`-- --race 有馬記念 --year 2026`）
 - `npm run sim:tune` — 世界を一度だけ走らせ、市場のつまみ（`--grid` に JSON の配列、世界側は `--balance`）を変えながら評価する。オッズを調整するときに使う
 - `npm run docs:bundle` — AI向けの全体資料（`docs/GAME_ANALYSIS_FOR_AI.md`）・仕様・計測レポート・全ソースを `dist/ai-source-bundle.md` にまとめる。仕組みや調整値を変えたら全体資料も直す
 - `npm run tracks:import` — コース形状データ（docs/reference/jra-tracks）から src/sim/trackData.ts を作り直す
@@ -21,7 +22,7 @@
 - シミュレーション（`src/sim/`）は描画やReactに依存しない純粋なTypeScriptにする。DOM・React・Zustand を import しない
 - 乱数はすべてシード付き乱数（`src/sim/rng.ts`）を経由する。`Math.random()` は使わない
 - 描画側（`src/render/`）は sim の記録を再生するだけで、レース結果を変えない
-- 実在の馬名・団体のロゴやデザインは使わない。競馬場名（東京・中山・京都・阪神）・重賞名・騎手名（ユーザー指定の名簿、`src/sim/world/jockeys.ts`）は実在のものを使う（仕様変更済み）。名簿の騎手が足りない日を埋める騎手は架空
+- 実在の馬名・団体のロゴやデザインは使わない。競馬場名（東京・中山・京都・阪神）・重賞名・騎手名（ユーザー指定の名簿、`src/sim/world/jockeys.ts`）は実在のものを使う（仕様変更済み）。架空の騎手は使わない
 - 変更後は `npm run test` と `npm run build` が通ることを確認する
 - localStorage へのアクセスは必ず try/catch で保護する
 - 配色は `src/ui/global.css` の変数（ダークと `[data-theme='light']`）とコース図の `src/render/colors.ts`（`setTrackTheme`）。色を足すときは両方のモードで決める

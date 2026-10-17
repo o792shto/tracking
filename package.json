@@ -17,7 +17,8 @@
     "sim:probe": "tsx tools/strategy_probe.ts",
     "sim:tune": "tsx tools/market_tune.ts",
     "sim:elite": "tsx tools/elite_probe.ts",
-    "sim:sharp": "tsx tools/sharp_probe.ts"
+    "sim:sharp": "tsx tools/sharp_probe.ts",
+    "sim:odds": "tsx tools/odds_breakdown.ts"
   },
   "dependencies": {
     "react": "^19.3.0",

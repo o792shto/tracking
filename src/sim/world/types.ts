@@ -103,7 +103,7 @@ export interface Jockey {
   rank: JockeyRank;
   /** 短期免許：この月の範囲（両端を含む）だけ日本で乗る */
   months?: [number, number];
-  /** 名簿の騎手が足りない日を埋める架空の騎手 */
+  /** 以前の版の架空の騎手（いまは使わない。保存データを読むときに外す） */
   fictional?: boolean;
   starts: number;
   wins: number;

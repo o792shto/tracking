@@ -251,8 +251,8 @@ function Jockeys({ world }: { world: World }) {
   const [year, setYear] = useState(currentYear(world));
   const rows = (world.jockeys ?? [])
     .map((j) => ({ j, y: j.byYear[year] ?? [0, 0, 0, 0], graded: j.graded.filter((g) => g.year === year) }))
-    // 名簿の騎手は騎乗がなくても出す（年の初め・短期免許の騎手）。架空の騎手は乗った年だけ
-    .filter((x) => x.y[0] > 0 || !x.j.fictional)
+    // 騎乗がなくても出す（年の初め・短期免許の騎手）
+    .filter((x) => !x.j.fictional)
     .sort((a, b) => b.y[1] - a.y[1] || b.y[2] - a.y[2] || rankValue(b.j.rank) - rankValue(a.j.rank) || a.j.id - b.j.id);
   return (
     <section>
